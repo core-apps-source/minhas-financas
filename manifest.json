@@ -7,9 +7,9 @@
   "background_color": "#0b0b14",
   "theme_color": "#ff9f43",
   "orientation": "portrait-primary",
-  "icons": [
+ "icons": [
     {
-      "src": "https://cdn-icons-png.flaticon.com/512/2098/2098402.png",
+      "src": "https://cdn-icons-png.flaticon.com/512/2450/2450214.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any maskable"
