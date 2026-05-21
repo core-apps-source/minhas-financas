@@ -1,15 +1,15 @@
 {
-  "name": "Foco Tarefas",
-  "short_name": "Foco",
-  "description": "Aplicativo de gerenciamento de tarefas",
+  "name": "Minhas Finanças",
+  "short_name": "Finanças",
+  "description": "Aplicativo de controle financeiro pessoal",
   "start_url": "./index.html",
   "display": "standalone",
   "background_color": "#0b0b14",
   "theme_color": "#ff9f43",
   "orientation": "portrait-primary",
- "icons": [
+  "icons": [
     {
-      "src": "https://cdn-icons-png.flaticon.com/512/2450/2450214.png",
+      "src": "./piggy-bank.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any maskable"
