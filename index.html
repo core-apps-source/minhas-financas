@@ -267,8 +267,15 @@
   .total-card-sm.cartoes { background:linear-gradient(135deg,#1e3a5f,#3b82f6); }
 
   .cartao-mini {
-    margin:0 20px 10px; background:var(--card); border:1px solid var(--border); border-radius:16px;
+    margin:0 0 10px; background:var(--card); border:1px solid var(--border); border-radius:16px;
     padding:14px 48px 14px 16px; display:flex; align-items:center; gap:12px; position:relative;
+    cursor:pointer; user-select:none; transition:background .2s ease, border-color .2s ease, transform .15s ease;
+  }
+  .cartao-mini:hover {
+    background:var(--bg3); border-color:rgba(255,255,255,0.12);
+  }
+  .cartao-mini:active {
+    transform:scale(0.99);
   }
   .cartao-mini-icon {
     width:48px; height:32px; border-radius:8px; display:flex; align-items:center; justify-content:center;
@@ -277,6 +284,26 @@
   .cartao-mini-info { flex:1; min-width:0; }
   .cartao-mini-nome { font-size:14px; font-weight:600; }
   .cartao-mini-total { font-family:'Syne',sans-serif; font-size:16px; font-weight:700; color:var(--accent4); }
+  .cartao-chevron {
+    width:24px; height:24px; display:flex; align-items:center; justify-content:center;
+    color:var(--muted); transition:transform .3s cubic-bezier(0.4, 0, 0.2, 1), color .25s ease;
+    flex-shrink:0;
+  }
+  .cartao-chevron svg { width:18px; height:18px; }
+  .cartao-grupo.open .cartao-chevron {
+    transform:rotate(-180deg); color:var(--accent);
+  }
+  .cartao-itens-container {
+    display:grid; grid-template-rows:0fr;
+    transition:grid-template-rows .3s cubic-bezier(0.4, 0, 0.2, 1), opacity .25s ease;
+    opacity:0; overflow:hidden;
+  }
+  .cartao-grupo.open .cartao-itens-container {
+    grid-template-rows:1fr; opacity:1;
+  }
+  .cartao-itens-inner {
+    min-height:0; display:flex; flex-direction:column; gap:8px; padding-top:4px;
+  }
   .cartao-grupo { margin:0 20px 20px; }
   .cartao-grupo-title {
     font-family:'Syne',sans-serif; font-size:11px; letter-spacing:2px; text-transform:uppercase;
@@ -810,6 +837,7 @@ let data = loadData();
 let activeFilter = "Todas";
 let pieChart = null, barChart = null;
 let confirmResolve = null;
+let cartoesExpandidos = new Set();
 
 function normFixa(f) {
   return { ...f, id: f.id || uid(), vencimento: Math.min(31, Math.max(1, parseInt(f.vencimento, 10) || 10)) };
@@ -1280,19 +1308,41 @@ function renderCartoes() {
         return renderDividaItem(p, "parcelada", `removerParcelada('${p.id}')`, fmt(p.parcela) + "/mês", rem + " parcelas");
       })
     ].join("");
+    const isOpen = cartoesExpandidos.has(c.id);
     return `
-      <div class="cartao-grupo">
-        <div class="cartao-mini">
+      <div class="cartao-grupo ${isOpen ? 'open' : ''}" id="grupo-${c.id}">
+        <div class="cartao-mini" onclick="toggleCartao('${c.id}')">
           ${btnRemove(`removerCartao('${c.id}')`)}
           <div class="cartao-mini-icon" style="background:${c.cor}33;color:${c.cor}">${c.emoji}</div>
           <div class="cartao-mini-info">
             <div class="cartao-mini-nome">${esc(c.nome)}</div>
             <div class="parcela-loja">Fatura ${MONTH_NAMES[0]}: <span class="cartao-mini-total">${fmt(fatura)}</span></div>
           </div>
+          <div class="cartao-chevron">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="6 9 12 15 18 9"></polyline>
+            </svg>
+          </div>
         </div>
-        ${itens || '<p class="empty-msg" style="margin-top:0">Nenhuma dívida neste cartão</p>'}
+        <div class="cartao-itens-container">
+          <div class="cartao-itens-inner">
+            ${itens || '<p class="empty-msg" style="margin-top:0; margin-bottom:8px;">Nenhuma dívida neste cartão</p>'}
+          </div>
+        </div>
       </div>`;
   }).join("");
+}
+
+function toggleCartao(cartaoId) {
+  const grupo = document.getElementById(`grupo-${cartaoId}`);
+  if (!grupo) return;
+  if (cartoesExpandidos.has(cartaoId)) {
+    cartoesExpandidos.delete(cartaoId);
+    grupo.classList.remove("open");
+  } else {
+    cartoesExpandidos.add(cartaoId);
+    grupo.classList.add("open");
+  }
 }
 
 function renderDividaItem(o, tipo, removeFn, valorStr, sub) {
