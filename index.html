@@ -60,7 +60,7 @@
   .nav-dot { position:absolute; top:-2px; right:-2px; width:7px; height:7px; background:var(--accent2); border-radius:50%; border:1.5px solid var(--bg); }
 
   /* HEADER */
-  .page-header { padding:52px 20px 20px; }
+  .page-header { padding:52px 20px 20px; display:flex; justify-content:space-between; align-items:flex-end; gap:12px; }
   .page-title { font-family:'Syne',sans-serif; font-size:11px; letter-spacing:4px; text-transform:uppercase; color:var(--muted); margin-bottom:6px; }
   .page-heading { font-family:'Syne',sans-serif; font-size:26px; font-weight:800; color:var(--text); }
 
@@ -393,6 +393,16 @@
 .month-row.mes-pago { opacity:0.55; }
 .month-row.mes-pago .month-name { text-decoration:line-through; }
 
+.year-select-wrap { position:relative; display:flex; align-items:center; }
+.year-select {
+  appearance:none; -webkit-appearance:none;
+  background:var(--bg3); border:1px solid var(--border); border-radius:12px;
+  padding:8px 32px 8px 16px; color:var(--text); font-family:'Syne',sans-serif;
+  font-size:13px; font-weight:700; cursor:pointer; outline:none; transition:all .2s ease;
+}
+.year-select:hover { border-color:var(--accent); box-shadow:0 0 10px rgba(0,217,165,0.2); }
+.year-select-wrap::after { content:'▼'; font-size:8px; color:var(--muted); position:absolute; right:14px; pointer-events:none; }
+
 </style>
 </head>
 <body>
@@ -435,12 +445,15 @@
     <!-- HOME -->
     <div class="screen active" id="screen-home">
       <div class="page-header fadein">
-        <div class="page-title">Visão Geral</div>
-        <div class="page-heading">Minhas Finanças</div>
+        <div>
+          <div class="page-title">Visão Geral</div>
+          <div class="page-heading">Minhas Finanças</div>
+        </div>
+        <div class="year-select-placeholder"></div>
       </div>
 
       <div class="hero-card fadein fadein-1">
-        <div class="hero-badge">Jun–Dez 2026</div>
+        <div class="hero-badge" id="hero-badge"></div>
         <div class="hero-label">Total geral este mês</div>
         <div class="hero-value" id="hero-junho"></div>
         <div class="hero-sub" id="hero-sub"></div>
@@ -465,7 +478,7 @@
         <div class="stat-card">
           <div class="stat-label">Cartões</div>
           <div class="stat-value" style="color:var(--accent4)" id="stat-cartoes"></div>
-          <div class="stat-sub">fatura jun.</div>
+          <div class="stat-sub" id="stat-cartoes-sub">fatura</div>
         </div>
       </div>
 
@@ -502,11 +515,14 @@
     <!-- CARTÕES -->
     <div class="screen" id="screen-cartoes">
       <div class="page-header">
-        <div class="page-title">Crédito</div>
-        <div class="page-heading">Cartões</div>
+        <div>
+          <div class="page-title">Crédito</div>
+          <div class="page-heading">Cartões</div>
+        </div>
+        <div class="year-select-placeholder"></div>
       </div>
       <div class="total-card-sm cartoes">
-        <div class="tc-label">Fatura dos cartões · Junho</div>
+        <div class="tc-label" id="cartoes-tc-label">Fatura dos cartões</div>
         <div class="tc-value" id="cartoes-total-mes"></div>
         <div class="tc-sub" id="cartoes-total-sub"></div>
       </div>
@@ -601,11 +617,14 @@
     <!-- PARCELADAS -->
     <div class="screen" id="screen-parcelas">
       <div class="page-header">
-        <div class="page-title">Cartão / loja</div>
-        <div class="page-heading">Dívidas Parceladas</div>
+        <div>
+          <div class="page-title">Cartão / loja</div>
+          <div class="page-heading">Dívidas Parceladas</div>
+        </div>
+        <div class="year-select-placeholder"></div>
       </div>
       <div class="total-card-sm parceladas">
-        <div class="tc-label">Total dívidas parceladas</div>
+        <div class="tc-label" id="parceladas-tc-label">Total dívidas parceladas</div>
         <div class="tc-value" id="parceladas-total-mes"></div>
         <div class="tc-sub" id="parceladas-total-sub"></div>
       </div>
@@ -617,11 +636,14 @@
     <!-- DÍVIDAS FIXAS -->
     <div class="screen" id="screen-fixas">
       <div class="page-header">
-        <div class="page-title">Mensal</div>
-        <div class="page-heading">Dívidas Fixas</div>
+        <div>
+          <div class="page-title">Mensal</div>
+          <div class="page-heading">Dívidas Fixas</div>
+        </div>
+        <div class="year-select-placeholder"></div>
       </div>
       <div class="total-card-sm fixas">
-        <div class="tc-label">Total dívidas fixas</div>
+        <div class="tc-label" id="fixas-tc-label">Total dívidas fixas</div>
         <div class="tc-value" id="fixas-total-mes"></div>
         <div class="tc-sub" id="fixas-total-sub"></div>
       </div>
@@ -660,8 +682,11 @@
     <!-- MESES -->
     <div class="screen" id="screen-meses">
       <div class="page-header">
-        <div class="page-title">Calendário</div>
-        <div class="page-heading">Mês a Mês</div>
+        <div>
+          <div class="page-title">Calendário</div>
+          <div class="page-heading">Mês a Mês</div>
+        </div>
+        <div class="year-select-placeholder"></div>
       </div>
       <div class="mes-list" id="mes-list"></div>
       <div style="height:8px"></div>
@@ -670,8 +695,11 @@
     <!-- CHARTS -->
     <div class="screen" id="screen-charts">
       <div class="page-header">
-        <div class="page-title">Análise</div>
-        <div class="page-heading">Gráficos</div>
+        <div>
+          <div class="page-title">Análise</div>
+          <div class="page-heading">Gráficos</div>
+        </div>
+        <div class="year-select-placeholder"></div>
       </div>
       <div class="filter-row" id="chart-filter-row"></div>
       <div class="chart-card">
@@ -876,16 +904,17 @@ document.addEventListener('DOMContentLoaded', () => Auth.init());
 
 const STORAGE_KEY = "minhas-financas-v2";
 
-const ALL_MONTHS = ["Jun","Jul","Ago","Set","Out","Nov","Dez"];
-const MONTH_NAMES = ["Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
-const COLORS = ["#00D9A5","#74B9FF","#FFD166","#FF6B6B","#A78BFA","#34D399","#FB923C"];
-const PALETTE = ["#93C5FD","#6EE7B7","#F9A8D4","#FCD34D","#C4B5FD","#FCA5A5","#00D9A5"];
+const ALL_MONTHS = ["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"];
+const MONTH_NAMES = ["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
+const COLORS = ["#00D9A5","#74B9FF","#FFD166","#FF6B6B","#A78BFA","#34D399","#FB923C","#F43F5E","#10B981","#3B82F6","#F59E0B","#EC4899"];
+const PALETTE = ["#93C5FD","#6EE7B7","#F9A8D4","#FCD34D","#C4B5FD","#FCA5A5","#00D9A5","#FDA4AF","#86EFAC","#93C5FD","#FDE047","#F472B6"];
 
 const fmt = v => "R$\u00a0" + (v||0).toLocaleString("pt-BR",{minimumFractionDigits:2,maximumFractionDigits:2});
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2,7);
 const esc = s => String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/"/g,"&quot;");
 
 let data = loadData();
+let activeYear = data.activeYear || new Date().getFullYear();
 let activeFilter = "Todas";
 let pieChart = null, barChart = null;
 let confirmResolve = null;
@@ -899,39 +928,93 @@ function normParcelada(p) {
   return { ...p, id: p.id || uid(), parcela: parseFloat(p.parcela) || 0, meses: p.meses || [] };
 }
 function normAvista(a) {
-  return { ...a, id: a.id || uid(), valor: parseFloat(a.valor) || 0, mes: a.mes || ALL_MONTHS[0] };
+  return { ...a, id: a.id || uid(), valor: parseFloat(a.valor) || 0, mes: a.mes || (activeYear + "-" + ALL_MONTHS[0]) };
 }
 function normCartao(c) {
   return { ...c, id: c.id || uid(), cor: c.cor || "#8B5CF6", emoji: c.emoji || "💳" };
 }
 
 function dadosVazios() {
-  return { cartoes: [], fixas: [], parceladas: [], avista: [], pagos: { itens: {}, meses: [] } };
+  return { version: 3, activeYear: new Date().getFullYear(), cartoes: [], fixas: [], parceladas: [], avista: [], pagos: { itens: {}, meses: [] } };
+}
+
+function migrateDataToV3(d) {
+  if (!d.version || d.version < 3) {
+    d.activeYear = d.activeYear || 2026;
+    
+    // Migrate avista
+    if (d.avista) {
+      d.avista.forEach(a => {
+        if (a.mes && !a.mes.includes("-")) {
+          a.mes = "2026-" + a.mes;
+        }
+      });
+    }
+    
+    // Migrate parceladas
+    if (d.parceladas) {
+      d.parceladas.forEach(p => {
+        if (p.meses) {
+          p.meses = p.meses.map(m => m.includes("-") ? m : "2026-" + m);
+        }
+        if (p.ultimo && !p.ultimo.includes("/")) {
+          p.ultimo = p.ultimo + "/2026";
+        }
+      });
+    }
+    
+    // Migrate pagos
+    if (d.pagos) {
+      if (d.pagos.meses) {
+        d.pagos.meses = d.pagos.meses.map(m => m.includes("-") ? m : "2026-" + m);
+      }
+      if (d.pagos.itens) {
+        const newItens = {};
+        Object.keys(d.pagos.itens).forEach(k => {
+          const parts = k.split("_");
+          if (parts[0] === "avista") {
+            newItens[k] = d.pagos.itens[k];
+          } else {
+            const [tipo, id, mes] = parts;
+            if (mes && !mes.includes("-")) {
+              newItens[`${tipo}_${id}_2026-${mes}`] = d.pagos.itens[k];
+            } else {
+              newItens[k] = d.pagos.itens[k];
+            }
+          }
+        });
+        d.pagos.itens = newItens;
+      }
+    }
+    d.version = 3;
+  }
+  return d;
 }
 
 function loadData() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY) || localStorage.getItem("minhas-financas-v1");
     if (raw) {
-      const d = JSON.parse(raw);
-      if (d.version >= 2 || d.cartoes) {
-        return {
-          cartoes: (d.cartoes || []).map(normCartao),
-          fixas: (d.fixas || []).map(normFixa),
-          parceladas: (d.parceladas || []).map(normParcelada),
-          avista: (d.avista || []).map(normAvista),
-          pagos: d.pagos || { itens: {}, meses: [] }
-        };
-      }
-      const parceladas = (d.parcelas || []).map(p => normParcelada({ ...p, cartaoId: null }));
-      return { cartoes: [], fixas: (d.fixas || []).map(normFixa), parceladas, avista: [], pagos: { itens: {}, meses: [] } };
+      let d = JSON.parse(raw);
+      d = migrateDataToV3(d);
+      
+      return {
+        version: 3,
+        activeYear: d.activeYear || new Date().getFullYear(),
+        cartoes: (d.cartoes || []).map(normCartao),
+        fixas: (d.fixas || []).map(normFixa),
+        parceladas: (d.parceladas || []).map(normParcelada),
+        avista: (d.avista || []).map(normAvista),
+        pagos: d.pagos || { itens: {}, meses: [] }
+      };
     }
   } catch (e) {}
+  
   return dadosVazios();
 }
 
 function saveData() {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify({ version: 2, ...data }));
+  localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...data, version: 3, activeYear }));
 }
 
 function getCartao(id) {
@@ -1077,8 +1160,9 @@ function faturaCartaoMes(cartaoId, mesKey) {
 function getMonthTotals() {
   const fixasTotal = totalFixasMensal();
   return ALL_MONTHS.map((m, i) => {
-    const parceladasMes = data.parceladas.filter(p => p.meses.includes(m));
-    const avistaMes = data.avista.filter(a => a.mes === m);
+    const mesKey = activeYear + "-" + m;
+    const parceladasMes = data.parceladas.filter(p => p.meses.includes(mesKey));
+    const avistaMes = data.avista.filter(a => a.mes === mesKey);
     const items = [
       ...data.fixas.map(f => ({ ...f, parcela: f.valor, tipo: "fixa", label: f.item })),
       ...parceladasMes.map(p => ({ ...p, tipo: "parcelada", label: p.item, parcela: p.parcela })),
@@ -1086,27 +1170,38 @@ function getMonthTotals() {
     ];
     // Enrich items with payment status
     items.forEach(p => {
-      p._pagoKey = pagoKey(p.tipo, p.id, m);
-      p._pago = isItemPago(p.tipo, p.id, m);
+      p._pagoKey = pagoKey(p.tipo, p.id, mesKey);
+      p._pago = isItemPago(p.tipo, p.id, mesKey);
     });
     const totalParc = parceladasMes.reduce((s, p) => s + p.parcela, 0);
     const totalAv = avistaMes.reduce((s, a) => s + a.valor, 0);
     const totalPago = items.filter(p => p._pago).reduce((s, p) => s + p.parcela, 0);
     return {
-      key: m, name: MONTH_NAMES[i],
+      key: mesKey, name: MONTH_NAMES[i],
       total: fixasTotal + totalParc + totalAv,
       totalFixas: fixasTotal,
       totalParceladas: totalParc,
       totalAvista: totalAv,
       totalPago,
       items,
-      mesPago: isMesPago(m)
+      mesPago: isMesPago(mesKey)
     };
   });
 }
 
-function mesesFromInicio(inicioIdx, qtd) {
-  return ALL_MONTHS.slice(inicioIdx, inicioIdx + qtd);
+function mesesFromInicio(startYear, startMonthIdx, qtd) {
+  const list = [];
+  let curYear = startYear;
+  let curMonthIdx = startMonthIdx;
+  for (let k = 0; k < qtd; k++) {
+    list.push(curYear + "-" + ALL_MONTHS[curMonthIdx]);
+    curMonthIdx++;
+    if (curMonthIdx >= 12) {
+      curMonthIdx = 0;
+      curYear++;
+    }
+  }
+  return list;
 }
 
 function pickColor() {
@@ -1121,7 +1216,7 @@ function fillMesSelects() {
     el.innerHTML = "";
     MONTH_NAMES.forEach((n, i) => {
       const o = document.createElement("option");
-      o.value = ALL_MONTHS[i];
+      o.value = activeYear + "-" + ALL_MONTHS[i];
       o.textContent = n;
       el.appendChild(o);
     });
@@ -1264,14 +1359,21 @@ function adicionarParcelada(e) {
   const loja = document.getElementById("pc-loja").value.trim();
   const emoji = document.getElementById("pc-emoji").value.trim() || "📦";
   const parcela = parseFloat(document.getElementById("pc-valor").value);
-  const inicioIdx = ALL_MONTHS.indexOf(document.getElementById("pc-inicio").value);
+  const startVal = document.getElementById("pc-inicio").value; // e.g. "2026-Jun"
+  if (!startVal) return;
+  const [startYearStr, startMonth] = startVal.split("-");
+  const startYear = parseInt(startYearStr, 10);
+  const inicioIdx = ALL_MONTHS.indexOf(startMonth);
   const qtd = parseInt(document.getElementById("pc-qtd").value, 10);
   if (!item || !loja || !parcela || qtd < 1 || inicioIdx < 0) return;
-  const meses = mesesFromInicio(inicioIdx, qtd);
-  if (meses.length < qtd) { showToast("Parcelas ultrapassam Dezembro"); return; }
+  const meses = mesesFromInicio(startYear, inicioIdx, qtd);
+  const lastVal = meses[meses.length - 1];
+  const [lastYear, lastMonth] = lastVal.split("-");
+  const lastMonthName = MONTH_NAMES[ALL_MONTHS.indexOf(lastMonth)];
+  const ultimoLabel = `${lastMonthName}/${lastYear}`;
   data.parceladas.push({
     id: uid(), cartaoId, item, loja, emoji, parcela,
-    ultimo: MONTH_NAMES[inicioIdx + qtd - 1],
+    ultimo: ultimoLabel,
     meses, cor: pickColor()
   });
   saveData();
@@ -1312,23 +1414,31 @@ async function importBackup(ev) {
   ev.target.value = "";
   if (!file) return;
   try {
-    const d = JSON.parse(await file.text());
+    let d = JSON.parse(await file.text());
     if (!d.cartoes && !d.parceladas && !d.parcelas) throw new Error("formato inválido");
     const ok = await showConfirm("Restaurar backup?", "Isso substitui todos os dados atuais.");
     if (!ok) return;
-    if (d.version >= 2 || d.cartoes) {
-      data = {
-        cartoes: (d.cartoes || []).map(normCartao),
-        fixas: (d.fixas || []).map(normFixa),
-        parceladas: (d.parceladas || []).map(normParcelada),
-        avista: (d.avista || []).map(normAvista),
-        pagos: d.pagos || { itens: {}, meses: [] }
-      };
-    } else {
-      data = loadData();
-      data.parceladas = (d.parcelas || []).map(normParcelada);
-      data.fixas = (d.fixas || []).map(normFixa);
+    
+    if (!d.cartoes && d.parcelas) {
+      d.parceladas = d.parcelas;
+      d.cartoes = [];
+      d.fixas = d.fixas || [];
+      d.avista = [];
     }
+    
+    d = migrateDataToV3(d);
+    
+    data = {
+      version: 3,
+      activeYear: d.activeYear || new Date().getFullYear(),
+      cartoes: (d.cartoes || []).map(normCartao),
+      fixas: (d.fixas || []).map(normFixa),
+      parceladas: (d.parceladas || []).map(normParcelada),
+      avista: (d.avista || []).map(normAvista),
+      pagos: d.pagos || { itens: {}, meses: [] }
+    };
+    
+    activeYear = data.activeYear;
     saveData();
     renderAll();
     showToast("Backup restaurado");
@@ -1347,35 +1457,41 @@ async function zerarTodosDados() {
 }
 
 function renderHome(monthTotals, maxTotal) {
-  const jun = monthTotals[0];
-  const mes = ALL_MONTHS[0];
+  const currentMonthIdx = new Date().getFullYear() === activeYear ? new Date().getMonth() : 0;
+  const mesData = monthTotals[currentMonthIdx];
+  const mesKey = mesData.key;
+  const mesName = mesData.name;
 
-  document.getElementById("hero-junho").textContent = fmt(totalGeralMes(mes));
+  document.getElementById("hero-junho").textContent = fmt(mesData.total);
   document.getElementById("hero-sub").textContent =
-    fmt(totalFixasMensal()) + " fixas · " + fmt(totalParceladasMes(mes)) + " parcel. · " + fmt(totalAvistaMes(mes)) + " à vista";
-  document.getElementById("stat-fixas").textContent = fmt(totalFixasMensal());
-  document.getElementById("stat-parceladas").textContent = fmt(totalParceladasMes(mes));
-  document.getElementById("stat-avista").textContent = fmt(totalAvistaMes(mes));
-  document.getElementById("stat-cartoes").textContent = fmt(totalCartoesMes(mes));
+    fmt(mesData.totalFixas) + " fixas · " + fmt(mesData.totalParceladas) + " parcel. · " + fmt(mesData.totalAvista) + " à vista";
+  document.getElementById("stat-fixas").textContent = fmt(mesData.totalFixas);
+  document.getElementById("stat-parceladas").textContent = fmt(mesData.totalParceladas);
+  document.getElementById("stat-avista").textContent = fmt(mesData.totalAvista);
+  document.getElementById("stat-cartoes").textContent = fmt(totalCartoesMes(mesKey));
+
+  document.getElementById("hero-badge").textContent = `Janeiro–Dezembro ${activeYear}`;
+  document.getElementById("stat-cartoes-sub").textContent = `fatura ${mesName.toLowerCase()}`;
 
   const pendente = totalPendentePeriodo();
   const totalGeral = totalGeralPeriodo();
   const pillEl = document.getElementById("pill-total");
   pillEl.textContent = fmt(pendente);
   document.getElementById("pill-label").textContent =
-    pendente < totalGeral ? "💸 Pendente (Jun–Dez)" : "💸 Total geral (Jun–Dez)";
+    pendente < totalGeral ? `💸 Pendente (Jan–Dez / ${activeYear})` : `💸 Total geral (Jan–Dez / ${activeYear})`;
 
   document.getElementById("home-months").innerHTML = monthTotals.map((m, i) => {
-    const c = COLORS[i];
+    const c = COLORS[i % COLORS.length];
     const pct = maxTotal ? (m.total / maxTotal * 100).toFixed(0) : 0;
     const pagoClass = m.mesPago ? " mes-pago" : "";
     const badge = m.mesPago ? '<span class="pago-badge">✓ PAGO</span>' : "";
     const btnLabel = m.mesPago ? "Desmarcar" : "Pagar mês";
     const btnClass = m.mesPago ? " pago-ativo" : "";
+    const monthAbbr = m.key.split("-")[1];
     return `
       <div class="month-row${pagoClass}">
         <div class="month-left" onclick="goTo('meses')" style="cursor:pointer;flex:1">
-          <div class="month-dot" style="background:${c}18;color:${c}">${m.key}</div>
+          <div class="month-dot" style="background:${c}18;color:${c}">${monthAbbr}</div>
           <div>
             <div class="month-name">${m.name} ${badge}</div>
             <div class="month-items">F ${fmt(m.totalFixas)} · P ${fmt(m.totalParceladas)} · V ${fmt(m.totalAvista)}</div>
@@ -1410,10 +1526,14 @@ function renderFilters() {
 }
 
 function renderParceladas() {
-  const mes = ALL_MONTHS[0];
-  document.getElementById("parceladas-total-mes").textContent = fmt(totalParceladasMes(mes));
+  const currentMonthIdx = new Date().getFullYear() === activeYear ? new Date().getMonth() : 0;
+  const mesKey = activeYear + "-" + ALL_MONTHS[currentMonthIdx];
+  const monthName = MONTH_NAMES[currentMonthIdx];
+
+  document.getElementById("parceladas-tc-label").textContent = `Total parcelas em ${monthName}`;
+  document.getElementById("parceladas-total-mes").textContent = fmt(totalParceladasMes(mesKey));
   document.getElementById("parceladas-total-sub").textContent =
-    data.parceladas.length + " parcelada(s) · Jun–Dez: " + fmt(totalParceladasPeriodo());
+    data.parceladas.length + ` parcelada(s) · Jan–Dez / ${activeYear}: ` + fmt(totalParceladasPeriodo());
 
   const list = document.getElementById("parcela-list");
   let filtered = data.parceladas;
@@ -1449,10 +1569,23 @@ function renderParceladas() {
 }
 
 function renderCartoes() {
-  const mes = ALL_MONTHS[0];
-  document.getElementById("cartoes-total-mes").textContent = fmt(totalCartoesMes(mes));
+  const currentMonthIdx = new Date().getFullYear() === activeYear ? new Date().getMonth() : 0;
+  const mesKey = activeYear + "-" + ALL_MONTHS[currentMonthIdx];
+  const monthName = MONTH_NAMES[currentMonthIdx];
+
+  const formatMesLabel = mesStr => {
+    if (mesStr && mesStr.includes("-")) {
+      const [y, m] = mesStr.split("-");
+      const mIdx = ALL_MONTHS.indexOf(m);
+      return (mIdx !== -1 ? MONTH_NAMES[mIdx] : m) + "/" + y;
+    }
+    return mesStr;
+  };
+
+  document.getElementById("cartoes-tc-label").textContent = `Fatura dos cartões · ${monthName}`;
+  document.getElementById("cartoes-total-mes").textContent = fmt(totalCartoesMes(mesKey));
   document.getElementById("cartoes-total-sub").textContent =
-    data.cartoes.length + " cartão(ões) · à vista + parceladas na fatura";
+    data.cartoes.length + ` cartão(ões) · à vista + parceladas na fatura de ${monthName}`;
 
   fillCartaoSelects();
   const wrap = document.getElementById("cartoes-grupos");
@@ -1461,11 +1594,11 @@ function renderCartoes() {
     return;
   }
   wrap.innerHTML = data.cartoes.map(c => {
-    const fatura = faturaCartaoMes(c.id, mes);
+    const fatura = faturaCartaoMes(c.id, mesKey);
     const parc = data.parceladas.filter(p => p.cartaoId === c.id);
     const av = data.avista.filter(a => a.cartaoId === c.id);
     const itens = [
-      ...av.map(a => renderDividaItem(a, "avista", `removerAvista('${a.id}')`, fmt(a.valor), MONTH_NAMES[ALL_MONTHS.indexOf(a.mes)] || a.mes)),
+      ...av.map(a => renderDividaItem(a, "avista", `removerAvista('${a.id}')`, fmt(a.valor), formatMesLabel(a.mes))),
       ...parc.map(p => {
         const rem = p.meses.length;
         return renderDividaItem(p, "parcelada", `removerParcelada('${p.id}')`, fmt(p.parcela) + "/mês", rem + " parcelas");
@@ -1479,7 +1612,7 @@ function renderCartoes() {
           <div class="cartao-mini-icon" style="background:${c.cor}33;color:${c.cor}">${c.emoji}</div>
           <div class="cartao-mini-info">
             <div class="cartao-mini-nome">${esc(c.nome)}</div>
-            <div class="parcela-loja">Fatura ${MONTH_NAMES[0]}: <span class="cartao-mini-total">${fmt(fatura)}</span></div>
+            <div class="parcela-loja">Fatura ${monthName}: <span class="cartao-mini-total">${fmt(fatura)}</span></div>
           </div>
           <div class="cartao-chevron">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
@@ -1544,8 +1677,9 @@ function renderDividaItem(o, tipo, removeFn, valorStr, sub) {
 
 function renderFixas() {
   document.getElementById("fixas-total-mes").textContent = fmt(totalFixasMensal());
+  document.getElementById("fixas-tc-label").textContent = "Total dívidas fixas";
   document.getElementById("fixas-total-sub").textContent =
-    data.fixas.length + " dívida(s) fixa(s) · Jun–Dez: " + fmt(totalFixasPeriodo());
+    data.fixas.length + ` dívida(s) fixa(s) · Jan–Dez / ${activeYear}: ` + fmt(totalFixasPeriodo());
   const list = document.getElementById("fixa-list");
   if (!data.fixas.length) {
     list.innerHTML = '<p class="empty-msg">Nenhuma dívida fixa. Adicione despesas com vencimento mensal.</p>';
@@ -1564,14 +1698,14 @@ function renderFixas() {
       <div class="parcela-right">
         <div class="parcela-value" style="color:${f.cor}">${fmt(f.valor)}</div>
         <div class="parcela-month">/mês</div>
-        <div class="parcela-month" style="margin-top:4px;color:var(--muted2)">${fmt(f.valor * 7)} no período</div>
+        <div class="parcela-month" style="margin-top:4px;color:var(--muted2)">${fmt(f.valor * 12)} no período</div>
       </div>
     </div>`).join("");
 }
 
 function renderMeses(monthTotals, maxTotal) {
   document.getElementById("mes-list").innerHTML = monthTotals.map((m, i) => {
-    const c = COLORS[i];
+    const c = COLORS[i % COLORS.length];
     const pct = maxTotal ? (m.total / maxTotal * 100).toFixed(0) : 0;
     const detailId = "mes-detail-" + i;
     const paidCount = m.items.filter(p => p._pago).length;
@@ -1579,6 +1713,7 @@ function renderMeses(monthTotals, maxTotal) {
     const allPaid = totalCount > 0 && paidCount === totalCount;
     const mesClass = allPaid ? " mes-pago" : "";
     const barColor = allPaid ? "var(--accent)" : c;
+    const mesAbbr = m.key.split("-")[1];
 
     const detailHtml = m.items.map(p => {
       const pago = p._pago;
@@ -1600,9 +1735,9 @@ function renderMeses(monthTotals, maxTotal) {
       <div class="mes-item${mesClass}" onclick="toggleMes('${detailId}')">
         <div class="mes-header">
           <div class="mes-left">
-            <div class="mes-badge" style="background:${c}18;color:${c}">${m.key}</div>
+            <div class="mes-badge" style="background:${c}18;color:${c}">${mesAbbr}</div>
             <div>
-              <div class="mes-title">${m.name} 2026${badgeHtml}</div>
+              <div class="mes-title">${m.name} ${activeYear}${badgeHtml}</div>
               <div class="mes-count">${m.items.length} item${m.items.length > 1 ? "s" : ""}${pagoInfo}</div>
             </div>
           </div>
@@ -1699,7 +1834,7 @@ function renderCharts(monthTotals) {
   barChart = new Chart(document.getElementById("barChart"), {
     type: "bar",
     data: {
-      labels: monthTotals.map(m => m.key),
+      labels: monthTotals.map(m => m.key.split("-")[1]),
       datasets: [{ data: barData, backgroundColor: COLORS, borderRadius: 8, borderWidth: 0 }]
     },
     options: {
@@ -1713,7 +1848,29 @@ function renderCharts(monthTotals) {
   });
 }
 
+function renderYearSelectors() {
+  const currentYear = new Date().getFullYear();
+  const years = [currentYear - 1, currentYear, currentYear + 1, currentYear + 2];
+  const placeholders = document.querySelectorAll(".year-select-placeholder");
+  placeholders.forEach(el => {
+    el.innerHTML = `
+      <div class="year-select-wrap">
+        <select class="year-select" onchange="changeActiveYear(parseInt(this.value, 10))">
+          ${years.map(y => `<option value="${y}" ${y === activeYear ? "selected" : ""}>${y}</option>`).join("")}
+        </select>
+      </div>
+    `;
+  });
+}
+
+function changeActiveYear(year) {
+  activeYear = year;
+  saveData();
+  renderAll();
+}
+
 function renderAll() {
+  renderYearSelectors();
   const monthTotals = getMonthTotals();
   const maxTotal = Math.max(1, ...monthTotals.map(m => m.total));
   renderHome(monthTotals, maxTotal);
