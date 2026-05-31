@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8">
@@ -806,23 +806,27 @@ const Auth = {
 
   async init() {
     const { data: { session } } = await db.auth.getSession();
-    if (session) this.showApp();
-    db.auth.onAuthStateChange((event, session) => {
-      if (event === 'SIGNED_IN' && session) this.showApp();
+    if (session) await this.showApp(session);
+    db.auth.onAuthStateChange(async (event, session) => {
+      if (event === 'SIGNED_IN' && session) await this.showApp(session);
       if (event === 'SIGNED_OUT') this.showLogin();
     });
   },
 
-  showApp() {
+  async showApp(session) {
+    currentUser = session?.user || null;
     document.getElementById('auth-screen').classList.add('hidden');
     document.getElementById('logout-btn').classList.add('visible');
     // Inicializa o app
     fillMesSelects();
     fillCartaoSelects();
+    await initCloudSync();
     renderAll();
   },
 
   showLogin() {
+    cleanupCloudSync();
+    currentUser = null;
     document.getElementById('auth-screen').classList.remove('hidden');
     document.getElementById('logout-btn').classList.remove('visible');
     document.getElementById('auth-email').value = '';
@@ -918,6 +922,11 @@ const esc = s => String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/"
 
 let data = loadData();
 let activeYear = data.activeYear || new Date().getFullYear();
+let currentUser = null;
+let syncReady = false;
+let isApplyingRemoteData = false;
+let remoteChannel = null;
+let saveTimer = null;
 let activeFilter = "Todas";
 let activeCartoesMonthIdx = new Date().getMonth();
 let pieChart = null, barChart = null;
@@ -995,32 +1004,141 @@ function migrateDataToV3(d) {
   return d;
 }
 
+function normalizeFinanceData(d) {
+  d = migrateDataToV3(d || dadosVazios());
+  return {
+    version: 3,
+    activeYear: d.activeYear || new Date().getFullYear(),
+    cartoes: (d.cartoes || []).map(normCartao),
+    fixas: (d.fixas || []).map(normFixa),
+    parceladas: (d.parceladas || []).map(normParcelada),
+    avista: (d.avista || []).map(normAvista),
+    pagos: d.pagos || { itens: {}, meses: [] },
+    updatedAt: d.updatedAt || null
+  };
+}
+
 function loadData() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY) || localStorage.getItem("minhas-financas-v1");
-    if (raw) {
-      let d = JSON.parse(raw);
-      d = migrateDataToV3(d);
-      
-      return {
-        version: 3,
-        activeYear: d.activeYear || new Date().getFullYear(),
-        cartoes: (d.cartoes || []).map(normCartao),
-        fixas: (d.fixas || []).map(normFixa),
-        parceladas: (d.parceladas || []).map(normParcelada),
-        avista: (d.avista || []).map(normAvista),
-        pagos: d.pagos || { itens: {}, meses: [] }
-      };
-    }
+    if (raw) return normalizeFinanceData(JSON.parse(raw));
   } catch (e) {}
-  
   return dadosVazios();
 }
 
-function saveData() {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...data, version: 3, activeYear }));
+function dataSnapshot() {
+  return { ...data, version: 3, activeYear, updatedAt: new Date().toISOString() };
 }
 
+function saveLocalData(snapshot = dataSnapshot()) {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(snapshot));
+}
+
+function saveData() {
+  const snapshot = dataSnapshot();
+  data.updatedAt = snapshot.updatedAt;
+  saveLocalData(snapshot);
+  if (!isApplyingRemoteData) queueCloudSync();
+}
+// =====================================================
+//  SUPABASE DATA SYNC
+// =====================================================
+const SYNC_TABLE = "user_finances";
+
+function dataHasContent(d) {
+  return !!(d && ((d.cartoes || []).length || (d.fixas || []).length || (d.parceladas || []).length || (d.avista || []).length));
+}
+
+function dataTimestamp(d) {
+  const time = Date.parse(d?.updatedAt || 0);
+  return Number.isFinite(time) ? time : 0;
+}
+
+function applyRemoteData(remoteData) {
+  isApplyingRemoteData = true;
+  data = normalizeFinanceData(remoteData);
+  activeYear = data.activeYear || new Date().getFullYear();
+  saveLocalData({ ...data, version: 3, activeYear });
+  isApplyingRemoteData = false;
+  fillMesSelects();
+  fillCartaoSelects();
+  renderAll();
+}
+
+function cleanupCloudSync() {
+  syncReady = false;
+  if (saveTimer) clearTimeout(saveTimer);
+  saveTimer = null;
+  if (remoteChannel) db.removeChannel(remoteChannel);
+  remoteChannel = null;
+}
+
+async function initCloudSync() {
+  if (!currentUser) return;
+  cleanupCloudSync();
+
+  const { data: row, error } = await db
+    .from(SYNC_TABLE)
+    .select("dados, updated_at")
+    .eq("user_id", currentUser.id)
+    .maybeSingle();
+
+  if (error) {
+    console.error("Erro ao carregar dados do Supabase", error);
+    showToast("Nao foi possivel sincronizar agora");
+  } else if (row?.dados) {
+    const localHasData = dataHasContent(data);
+    const remoteTime = Date.parse(row.updated_at || row.dados.updatedAt || 0) || 0;
+    const localTime = dataTimestamp(data);
+
+    if (!localHasData || remoteTime >= localTime) {
+      applyRemoteData({ ...row.dados, updatedAt: row.dados.updatedAt || row.updated_at });
+    } else {
+      await pushCloudData();
+    }
+  } else if (dataHasContent(data)) {
+    await pushCloudData();
+  }
+
+  remoteChannel = db
+    .channel(`financas-${currentUser.id}`)
+    .on("postgres_changes", {
+      event: "*",
+      schema: "public",
+      table: SYNC_TABLE,
+      filter: `user_id=eq.${currentUser.id}`
+    }, payload => {
+      if (!payload.new?.dados) return;
+      const remote = { ...payload.new.dados, updatedAt: payload.new.dados.updatedAt || payload.new.updated_at };
+      if (dataTimestamp(remote) <= dataTimestamp(data)) return;
+      applyRemoteData(remote);
+      showToast("Dados sincronizados");
+    })
+    .subscribe(status => {
+      if (status === "SUBSCRIBED") syncReady = true;
+    });
+}
+
+function queueCloudSync() {
+  if (!currentUser) return;
+  if (saveTimer) clearTimeout(saveTimer);
+  saveTimer = setTimeout(() => pushCloudData(), 500);
+}
+
+async function pushCloudData() {
+  if (!currentUser) return;
+  const snapshot = dataSnapshot();
+  data.updatedAt = snapshot.updatedAt;
+  saveLocalData(snapshot);
+  const { error } = await db
+    .from(SYNC_TABLE)
+    .upsert({ user_id: currentUser.id, dados: snapshot, updated_at: snapshot.updatedAt }, { onConflict: "user_id" });
+
+  if (error) {
+    console.error("Erro ao salvar no Supabase", error);
+    showToast("Salvo neste celular. Sync falhou.");
+  }
+}
 function getCartao(id) {
   return data.cartoes.find(c => c.id === id);
 }
@@ -1329,6 +1447,8 @@ function adicionarCartao(e) {
   const emoji = document.getElementById("ct-emoji").value.trim() || "💳";
   const cor = document.getElementById("ct-cor").value.trim() || "#8B5CF6";
   if (!nome) return;
+  const jaExiste = data.cartoes.some(c => (c.nome || "").trim().toLowerCase() === nome.toLowerCase());
+  if (jaExiste) { showToast("Cartão já cadastrado"); return; }
   data.cartoes.push({ id: uid(), nome, emoji, cor });
   saveData();
   document.getElementById("form-cartao").reset();
@@ -1588,20 +1708,33 @@ function changeCartoesMonth(idx) {
 }
 
 function renderCartoes() {
+  // Agora os cards sao agrupados por (cartao + mes da fatura).
+  // Isso permite ver Nubank/Junho e Nubank/Agosto ao mesmo tempo.
+
+  // O seletor antigo de mes (se existir no HTML) fica oculto.
   const monthPlaceholder = document.getElementById("cartoes-month-select-placeholder");
-  if (monthPlaceholder) {
-    monthPlaceholder.innerHTML = `
-      <div class="year-select-wrap">
-        <select class="year-select" onchange="changeCartoesMonth(parseInt(this.value, 10))">
-          ${MONTH_NAMES.map((n, i) => `<option value="${i}" ${i === activeCartoesMonthIdx ? "selected" : ""}>${n}</option>`).join("")}
-        </select>
-      </div>
-    `;
+  if (monthPlaceholder) monthPlaceholder.innerHTML = "";
+
+  fillCartaoSelects();
+  const wrap = document.getElementById("cartoes-grupos");
+  if (!wrap) return;
+
+  if (!data.cartoes.length) {
+    wrap.innerHTML = '<p class="empty-msg">Cadastre um cartão para lançar dívidas à vista ou parceladas.</p>';
+    document.getElementById("cartoes-tc-label").textContent = "Fatura dos cartões";
+    document.getElementById("cartoes-total-mes").textContent = fmt(0);
+    document.getElementById("cartoes-total-sub").textContent = "0 cartão(ões)";
+    return;
   }
 
-  const mesKey = activeYear + "-" + ALL_MONTHS[activeCartoesMonthIdx];
-  const monthName = MONTH_NAMES[activeCartoesMonthIdx];
-
+  const monthIndex = (mesKey) => {
+    const m = String(mesKey || "").split("-")[1] || "";
+    return ALL_MONTHS.indexOf(m);
+  };
+  const monthNameFromKey = (mesKey) => {
+    const idx = monthIndex(mesKey);
+    return idx >= 0 ? MONTH_NAMES[idx] : mesKey;
+  };
   const formatMesLabel = mesStr => {
     if (mesStr && mesStr.includes("-")) {
       const [y, m] = mesStr.split("-");
@@ -1611,61 +1744,104 @@ function renderCartoes() {
     return mesStr;
   };
 
-  document.getElementById("cartoes-tc-label").textContent = `Fatura dos cartões · ${monthName}`;
-  document.getElementById("cartoes-total-mes").textContent = fmt(totalCartoesMes(mesKey));
-  document.getElementById("cartoes-total-sub").textContent =
-    data.cartoes.length + ` cartão(ões) · à vista + parceladas na fatura de ${monthName}`;
+  // Meses com qualquer divida neste ano ativo
+  const mesesSet = new Set();
+  data.avista.forEach(a => {
+    if (a.mes && String(a.mes).startsWith(activeYear + "-")) mesesSet.add(a.mes);
+  });
+  data.parceladas.forEach(p => {
+    (p.meses || []).forEach(m => {
+      if (m && String(m).startsWith(activeYear + "-")) mesesSet.add(m);
+    });
+  });
 
-  fillCartaoSelects();
-  const wrap = document.getElementById("cartoes-grupos");
-  if (!data.cartoes.length) {
-    wrap.innerHTML = '<p class="empty-msg">Cadastre um cartão para lançar dívidas à vista ou parceladas.</p>';
+  const meses = Array.from(mesesSet).sort((a, b) => monthIndex(a) - monthIndex(b));
+
+  if (!meses.length) {
+    wrap.innerHTML = '<p class="empty-msg">Nenhuma dívida cadastrada. Adicione uma dívida à vista ou parcelada.</p>';
+    document.getElementById("cartoes-tc-label").textContent = `Fatura dos cartões · ${activeYear}`;
+    document.getElementById("cartoes-total-mes").textContent = fmt(0);
+    document.getElementById("cartoes-total-sub").textContent = "0 cartão(ões) com dívida";
     return;
   }
-  wrap.innerHTML = data.cartoes.map(c => {
-    const fatura = faturaCartaoMes(c.id, mesKey);
-    const parc = data.parceladas.filter(p => p.cartaoId === c.id);
-    const av = data.avista.filter(a => a.cartaoId === c.id);
-    const itens = [
-      ...av.map(a => renderDividaItem(a, "avista", `removerAvista('${a.id}')`, fmt(a.valor), formatMesLabel(a.mes))),
-      ...parc.map(p => {
-        const rem = p.meses.length;
-        return renderDividaItem(p, "parcelada", `removerParcelada('${p.id}')`, fmt(p.parcela) + "/mês", rem + " parcelas");
-      })
-    ].join("");
-    const isOpen = cartoesExpandidos.has(c.id);
+
+  // Total geral por todos os meses exibidos
+  const totalGeral = meses.reduce((s, mesKey) => s + totalCartoesMes(mesKey), 0);
+  document.getElementById("cartoes-tc-label").textContent = `Fatura dos cartões · ${activeYear}`;
+  document.getElementById("cartoes-total-mes").textContent = fmt(totalGeral);
+
+  // Monta cards por (cartao + mes)
+  let cardsCount = 0;
+  const html = meses.map(mesKey => {
+    const mName = monthNameFromKey(mesKey);
+
+    const cartoesNoMes = data.cartoes.filter(c => {
+      const temAvista = data.avista.some(a => a.cartaoId === c.id && a.mes === mesKey);
+      const temParcelada = data.parceladas.some(p => p.cartaoId === c.id && (p.meses || []).includes(mesKey));
+      return temAvista || temParcelada;
+    });
+
+    if (!cartoesNoMes.length) return "";
+
+    const section = cartoesNoMes.map(c => {
+      cardsCount++;
+      const fatura = faturaCartaoMes(c.id, mesKey);
+      const parcMes = data.parceladas.filter(p => p.cartaoId === c.id && (p.meses || []).includes(mesKey));
+      const avMes = data.avista.filter(a => a.cartaoId === c.id && a.mes === mesKey);
+
+      const itens = [
+        ...avMes.map(a => renderDividaItem(a, "avista", `removerAvista('${a.id}')`, fmt(a.valor), formatMesLabel(a.mes))),
+        ...parcMes.map(p => {
+          const rem = p.meses.length;
+          return renderDividaItem(p, "parcelada", `removerParcelada('${p.id}')`, fmt(p.parcela) + "/mês", rem + " parcelas");
+        })
+      ].join("");
+
+      const groupKey = `${c.id}__${mesKey}`;
+      const isOpen = cartoesExpandidos.has(groupKey);
+
+      return `
+        <div class="cartao-grupo ${isOpen ? 'open' : ''}" id="grupo-${groupKey}">
+          <div class="cartao-mini" onclick="toggleCartao('${groupKey}')">
+            <div class="cartao-mini-icon" style="background:${c.cor}33;color:${c.cor}">${c.emoji}</div>
+            <div class="cartao-mini-info">
+              <div class="cartao-mini-nome">${esc(c.nome)} · ${mName}</div>
+              <div class="parcela-loja">Fatura ${mName}: <span class="cartao-mini-total">${fmt(fatura)}</span></div>
+            </div>
+            <div class="cartao-chevron">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="6 9 12 15 18 9"></polyline>
+              </svg>
+            </div>
+          </div>
+          <div class="cartao-itens-container">
+            <div class="cartao-itens-inner">
+              ${itens || '<p class="empty-msg" style="margin-top:0; margin-bottom:8px;">Nenhuma dívida neste mês</p>'}
+            </div>
+          </div>
+        </div>`;
+    }).join("");
+
     return `
-      <div class="cartao-grupo ${isOpen ? 'open' : ''}" id="grupo-${c.id}">
-        <div class="cartao-mini" onclick="toggleCartao('${c.id}')">
-          ${btnRemove(`removerCartao('${c.id}')`)}
-          <div class="cartao-mini-icon" style="background:${c.cor}33;color:${c.cor}">${c.emoji}</div>
-          <div class="cartao-mini-info">
-            <div class="cartao-mini-nome">${esc(c.nome)}</div>
-            <div class="parcela-loja">Fatura ${monthName}: <span class="cartao-mini-total">${fmt(fatura)}</span></div>
-          </div>
-          <div class="cartao-chevron">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-              <polyline points="6 9 12 15 18 9"></polyline>
-            </svg>
-          </div>
-        </div>
-        <div class="cartao-itens-container">
-          <div class="cartao-itens-inner">
-            ${itens || '<p class="empty-msg" style="margin-top:0; margin-bottom:8px;">Nenhuma dívida neste cartão</p>'}
-          </div>
-        </div>
-      </div>`;
+      <div style="margin: 12px 20px 8px; font-family:'Syne',sans-serif; font-size:11px; letter-spacing:3px; text-transform:uppercase; color:var(--muted)">
+        ${mName}
+      </div>
+      ${section}
+    `;
   }).join("");
+
+  wrap.innerHTML = html || '<p class="empty-msg">Nenhuma dívida encontrada.</p>';
+  document.getElementById("cartoes-total-sub").textContent = cardsCount + " card(s) (cartão + mês)";
 }
 
-function toggleCartao(cartaoId) {
-  const grupo = document.getElementById(`grupo-${cartaoId}`);
+function toggleCartao(groupKey) {
+  const grupo = document.getElementById(`grupo-${groupKey}`);
   if (!grupo) return;
-  if (cartoesExpandidos.has(cartaoId)) {
-    cartoesExpandidos.delete(cartaoId);
+  if (cartoesExpandidos.has(groupKey)) {
+    cartoesExpandidos.delete(groupKey);
     grupo.classList.remove("open");
   } else {
-    cartoesExpandidos.add(cartaoId);
+    cartoesExpandidos.add(groupKey);
     grupo.classList.add("open");
   }
 }
