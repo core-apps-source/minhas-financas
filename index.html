@@ -519,7 +519,10 @@
           <div class="page-title">Crédito</div>
           <div class="page-heading">Cartões</div>
         </div>
-        <div class="year-select-placeholder"></div>
+        <div style="display:flex; gap:8px;">
+          <div id="cartoes-month-select-placeholder"></div>
+          <div class="year-select-placeholder"></div>
+        </div>
       </div>
       <div class="total-card-sm cartoes">
         <div class="tc-label" id="cartoes-tc-label">Fatura dos cartões</div>
@@ -916,6 +919,7 @@ const esc = s => String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/"
 let data = loadData();
 let activeYear = data.activeYear || new Date().getFullYear();
 let activeFilter = "Todas";
+let activeCartoesMonthIdx = new Date().getMonth();
 let pieChart = null, barChart = null;
 let confirmResolve = null;
 let cartoesExpandidos = new Set();
@@ -1344,6 +1348,11 @@ function adicionarAvista(e) {
   const emoji = document.getElementById("av-emoji").value.trim() || "💵";
   if (!item || !valor) return;
   data.avista.push({ id: uid(), cartaoId, item, valor, mes, emoji, cor: pickColor() });
+  if (mes && mes.includes("-")) {
+    const [y, m] = mes.split("-");
+    const mIdx = ALL_MONTHS.indexOf(m);
+    if (mIdx !== -1) activeCartoesMonthIdx = mIdx;
+  }
   saveData();
   document.getElementById("form-avista").reset();
   fillCartaoSelects();
@@ -1376,6 +1385,11 @@ function adicionarParcelada(e) {
     ultimo: ultimoLabel,
     meses, cor: pickColor()
   });
+  if (startVal && startVal.includes("-")) {
+    const [y, m] = startVal.split("-");
+    const mIdx = ALL_MONTHS.indexOf(m);
+    if (mIdx !== -1) activeCartoesMonthIdx = mIdx;
+  }
   saveData();
   document.getElementById("form-parcelada-cartao").reset();
   document.getElementById("pc-qtd").value = "1";
@@ -1568,10 +1582,25 @@ function renderParceladas() {
   }).join("");
 }
 
+function changeCartoesMonth(idx) {
+  activeCartoesMonthIdx = idx;
+  renderAll();
+}
+
 function renderCartoes() {
-  const currentMonthIdx = new Date().getFullYear() === activeYear ? new Date().getMonth() : 0;
-  const mesKey = activeYear + "-" + ALL_MONTHS[currentMonthIdx];
-  const monthName = MONTH_NAMES[currentMonthIdx];
+  const monthPlaceholder = document.getElementById("cartoes-month-select-placeholder");
+  if (monthPlaceholder) {
+    monthPlaceholder.innerHTML = `
+      <div class="year-select-wrap">
+        <select class="year-select" onchange="changeCartoesMonth(parseInt(this.value, 10))">
+          ${MONTH_NAMES.map((n, i) => `<option value="${i}" ${i === activeCartoesMonthIdx ? "selected" : ""}>${n}</option>`).join("")}
+        </select>
+      </div>
+    `;
+  }
+
+  const mesKey = activeYear + "-" + ALL_MONTHS[activeCartoesMonthIdx];
+  const monthName = MONTH_NAMES[activeCartoesMonthIdx];
 
   const formatMesLabel = mesStr => {
     if (mesStr && mesStr.includes("-")) {
