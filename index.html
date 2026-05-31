@@ -498,11 +498,6 @@
         </div>
       </div>
 
-      <div class="total-pill fadein fadein-3">
-        <span class="total-pill-label" id="pill-label">💸 Total geral (Jun–Dez)</span>
-        <span class="total-pill-value" id="pill-total"></span>
-      </div>
-
       <div class="section-title fadein fadein-3">Próximos meses</div>
       <div class="month-preview fadein fadein-4" id="home-months"></div>
 
@@ -1630,13 +1625,6 @@ function renderHome(monthTotals, maxTotal) {
 
   document.getElementById("hero-badge").textContent = `Janeiro–Dezembro ${activeYear}`;
   document.getElementById("stat-cartoes-sub").textContent = `fatura ${mesName.toLowerCase()}`;
-
-  const pendente = totalPendentePeriodo();
-  const totalGeral = totalGeralPeriodo();
-  const pillEl = document.getElementById("pill-total");
-  pillEl.textContent = fmt(pendente);
-  document.getElementById("pill-label").textContent =
-    pendente < totalGeral ? `💸 Pendente (Jan–Dez / ${activeYear})` : `💸 Total geral (Jan–Dez / ${activeYear})`;
 
   document.getElementById("home-months").innerHTML = monthTotals.map((m, i) => {
     const c = COLORS[i % COLORS.length];
