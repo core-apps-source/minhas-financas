@@ -131,7 +131,7 @@
   .mes-bar { height:100%; border-radius:99px; }
   .mes-detail { display:none; padding-top:12px; }
   .mes-detail.open { display:block; }
-  .mes-detail-item { display:flex; justify-content:space-between; align-items:center; padding:8px 0; border-top:1px solid rgba(255,255,255,0.04); }
+  .mes-detail-item { display:flex; justify-content:space-between; align-items:center; padding:8px 0; border-top:1px solid rgba(255,255,255,0.04); gap:10px; }
   .mes-detail-left { display:flex; align-items:center; gap:8px; font-size:12px; color:#94a3b8; }
   .mes-detail-emoji { font-size:14px; }
   .mes-detail-val { font-size:13px; font-weight:600; color:var(--text); }
@@ -342,6 +342,57 @@
 .auth-logout-btn:hover{color:var(--text);}
 .auth-logout-btn.visible{display:block;}
 
+/* ===== PAYMENT STATUS ===== */
+.btn-pago-toggle {
+  width:26px; height:26px; border-radius:50%; border:2px solid var(--muted2);
+  background:transparent; cursor:pointer; display:flex; align-items:center; justify-content:center;
+  flex-shrink:0; transition:all .25s cubic-bezier(0.4, 0, 0.2, 1); padding:0;
+}
+.btn-pago-toggle svg { width:14px; height:14px; opacity:0; transition:opacity .2s ease; stroke:currentColor; }
+.btn-pago-toggle:hover { border-color:var(--accent); }
+.btn-pago-toggle.checked {
+  background:var(--accent); border-color:var(--accent); color:#000;
+  box-shadow:0 0 12px rgba(0,217,165,0.35);
+}
+.btn-pago-toggle.checked svg { opacity:1; }
+
+.mes-detail-item.pago .mes-detail-left {
+  text-decoration:line-through; opacity:0.45; color:var(--muted);
+}
+.mes-detail-item.pago .mes-detail-val {
+  text-decoration:line-through; opacity:0.45; color:var(--muted);
+}
+
+.mes-item.mes-pago { border-left:3px solid var(--accent); }
+.mes-item.mes-pago .mes-badge { background:rgba(0,217,165,0.15) !important; color:var(--accent) !important; }
+.mes-item.mes-pago .mes-bar { background:var(--accent) !important; }
+
+.pago-badge {
+  display:inline-flex; align-items:center; gap:4px;
+  background:rgba(0,217,165,0.15); color:var(--accent);
+  font-family:'Syne',sans-serif; font-size:9px; font-weight:700;
+  letter-spacing:1px; text-transform:uppercase;
+  padding:4px 10px; border-radius:99px; white-space:nowrap;
+}
+
+.btn-marcar-mes {
+  padding:6px 12px; border-radius:99px; border:1px solid var(--border);
+  background:var(--bg3); color:var(--muted); font-family:'DM Sans',sans-serif;
+  font-size:10px; font-weight:600; cursor:pointer; transition:all .2s ease;
+  white-space:nowrap; flex-shrink:0;
+}
+.btn-marcar-mes:hover { border-color:var(--accent); color:var(--accent); }
+.btn-marcar-mes.pago-ativo {
+  background:rgba(0,217,165,0.1); border-color:rgba(0,217,165,0.3); color:var(--accent);
+}
+
+.mes-pago-info {
+  font-size:10px; color:var(--muted); margin-top:2px;
+}
+
+.month-row.mes-pago { opacity:0.55; }
+.month-row.mes-pago .month-name { text-decoration:line-through; }
+
 </style>
 </head>
 <body>
@@ -419,7 +470,7 @@
       </div>
 
       <div class="total-pill fadein fadein-3">
-        <span class="total-pill-label">💸 Total geral (Jun–Dez)</span>
+        <span class="total-pill-label" id="pill-label">💸 Total geral (Jun–Dez)</span>
         <span class="total-pill-value" id="pill-total"></span>
       </div>
 
@@ -622,6 +673,7 @@
         <div class="page-title">Análise</div>
         <div class="page-heading">Gráficos</div>
       </div>
+      <div class="filter-row" id="chart-filter-row"></div>
       <div class="chart-card">
         <div class="chart-title">Onde vai mais dinheiro / mês</div>
         <div class="chart-wrap" style="height:220px">
@@ -838,6 +890,7 @@ let activeFilter = "Todas";
 let pieChart = null, barChart = null;
 let confirmResolve = null;
 let cartoesExpandidos = new Set();
+let activeChartFilter = "Todas";
 
 function normFixa(f) {
   return { ...f, id: f.id || uid(), vencimento: Math.min(31, Math.max(1, parseInt(f.vencimento, 10) || 10)) };
@@ -853,7 +906,7 @@ function normCartao(c) {
 }
 
 function dadosVazios() {
-  return { cartoes: [], fixas: [], parceladas: [], avista: [] };
+  return { cartoes: [], fixas: [], parceladas: [], avista: [], pagos: { itens: {}, meses: [] } };
 }
 
 function loadData() {
@@ -866,11 +919,12 @@ function loadData() {
           cartoes: (d.cartoes || []).map(normCartao),
           fixas: (d.fixas || []).map(normFixa),
           parceladas: (d.parceladas || []).map(normParcelada),
-          avista: (d.avista || []).map(normAvista)
+          avista: (d.avista || []).map(normAvista),
+          pagos: d.pagos || { itens: {}, meses: [] }
         };
       }
       const parceladas = (d.parcelas || []).map(p => normParcelada({ ...p, cartaoId: null }));
-      return { cartoes: [], fixas: (d.fixas || []).map(normFixa), parceladas, avista: [] };
+      return { cartoes: [], fixas: (d.fixas || []).map(normFixa), parceladas, avista: [], pagos: { itens: {}, meses: [] } };
     }
   } catch (e) {}
   return dadosVazios();
@@ -927,6 +981,93 @@ function vencimentoLabel(dia) {
   return "Vence todo dia " + dia;
 }
 
+// =====================================================
+//  PAYMENT TRACKING
+// =====================================================
+function pagoKey(tipo, id, mesKey) {
+  return tipo === "avista" ? `avista_${id}` : `${tipo}_${id}_${mesKey}`;
+}
+function isItemPago(tipo, id, mesKey) {
+  return !!data.pagos.itens[pagoKey(tipo, id, mesKey)];
+}
+function toggleItemPago(tipo, id, mesKey) {
+  const key = pagoKey(tipo, id, mesKey);
+  if (data.pagos.itens[key]) {
+    delete data.pagos.itens[key];
+  } else {
+    data.pagos.itens[key] = true;
+  }
+  // Auto-detect if entire month is now paid
+  syncMesPago(mesKey);
+  saveData();
+  renderAll();
+}
+function toggleAllParceladaMeses(id) {
+  const p = data.parceladas.find(x => x.id === id);
+  if (!p) return;
+  const allPaid = p.meses && p.meses.length > 0 && p.meses.every(m => isItemPago("parcelada", id, m));
+  p.meses.forEach(m => {
+    const key = pagoKey("parcelada", id, m);
+    if (allPaid) {
+      delete data.pagos.itens[key];
+    } else {
+      data.pagos.itens[key] = true;
+    }
+    syncMesPago(m);
+  });
+  saveData();
+  renderAll();
+}
+function syncMesPago(mesKey) {
+  const monthData = getMonthTotals().find(m => m.key === mesKey);
+  if (!monthData) return;
+  const allPaid = monthData.items.length > 0 && monthData.items.every(p => isItemPago(p.tipo, p.id, mesKey));
+  const idx = data.pagos.meses.indexOf(mesKey);
+  if (allPaid && idx === -1) {
+    data.pagos.meses.push(mesKey);
+  } else if (!allPaid && idx !== -1) {
+    data.pagos.meses.splice(idx, 1);
+  }
+}
+function isMesPago(mesKey) {
+  return data.pagos.meses.includes(mesKey);
+}
+function toggleMesPago(mesKey) {
+  const monthData = getMonthTotals().find(m => m.key === mesKey);
+  if (!monthData) return;
+  const pago = isMesPago(mesKey);
+  if (pago) {
+    // Desmarcar tudo
+    monthData.items.forEach(p => {
+      const key = pagoKey(p.tipo, p.id, mesKey);
+      delete data.pagos.itens[key];
+    });
+    const idx = data.pagos.meses.indexOf(mesKey);
+    if (idx !== -1) data.pagos.meses.splice(idx, 1);
+  } else {
+    // Marcar tudo
+    monthData.items.forEach(p => {
+      data.pagos.itens[pagoKey(p.tipo, p.id, mesKey)] = true;
+    });
+    if (!data.pagos.meses.includes(mesKey)) data.pagos.meses.push(mesKey);
+  }
+  saveData();
+  renderAll();
+}
+function countPagosMes(mesKey) {
+  const monthData = getMonthTotals().find(m => m.key === mesKey);
+  if (!monthData) return { paid: 0, total: 0 };
+  const paid = monthData.items.filter(p => isItemPago(p.tipo, p.id, mesKey)).length;
+  return { paid, total: monthData.items.length };
+}
+function totalPendentePeriodo() {
+  let total = 0;
+  getMonthTotals().forEach(m => {
+    total += (m.total - m.totalPago);
+  });
+  return total;
+}
+
 function faturaCartaoMes(cartaoId, mesKey) {
   const parc = data.parceladas.filter(p => p.cartaoId === cartaoId && p.meses.includes(mesKey)).reduce((s, p) => s + p.parcela, 0);
   const av = data.avista.filter(a => a.cartaoId === cartaoId && a.mes === mesKey).reduce((s, a) => s + a.valor, 0);
@@ -943,15 +1084,23 @@ function getMonthTotals() {
       ...parceladasMes.map(p => ({ ...p, tipo: "parcelada", label: p.item, parcela: p.parcela })),
       ...avistaMes.map(a => ({ ...a, tipo: "avista", label: a.item, parcela: a.valor, emoji: a.emoji || "💵", loja: nomeCartao(a.cartaoId) }))
     ];
+    // Enrich items with payment status
+    items.forEach(p => {
+      p._pagoKey = pagoKey(p.tipo, p.id, m);
+      p._pago = isItemPago(p.tipo, p.id, m);
+    });
     const totalParc = parceladasMes.reduce((s, p) => s + p.parcela, 0);
     const totalAv = avistaMes.reduce((s, a) => s + a.valor, 0);
+    const totalPago = items.filter(p => p._pago).reduce((s, p) => s + p.parcela, 0);
     return {
       key: m, name: MONTH_NAMES[i],
       total: fixasTotal + totalParc + totalAv,
       totalFixas: fixasTotal,
       totalParceladas: totalParc,
       totalAvista: totalAv,
-      items
+      totalPago,
+      items,
+      mesPago: isMesPago(m)
     };
   });
 }
@@ -1172,7 +1321,8 @@ async function importBackup(ev) {
         cartoes: (d.cartoes || []).map(normCartao),
         fixas: (d.fixas || []).map(normFixa),
         parceladas: (d.parceladas || []).map(normParcelada),
-        avista: (d.avista || []).map(normAvista)
+        avista: (d.avista || []).map(normAvista),
+        pagos: d.pagos || { itens: {}, meses: [] }
       };
     } else {
       data = loadData();
@@ -1207,23 +1357,36 @@ function renderHome(monthTotals, maxTotal) {
   document.getElementById("stat-parceladas").textContent = fmt(totalParceladasMes(mes));
   document.getElementById("stat-avista").textContent = fmt(totalAvistaMes(mes));
   document.getElementById("stat-cartoes").textContent = fmt(totalCartoesMes(mes));
-  document.getElementById("pill-total").textContent = fmt(totalGeralPeriodo());
+
+  const pendente = totalPendentePeriodo();
+  const totalGeral = totalGeralPeriodo();
+  const pillEl = document.getElementById("pill-total");
+  pillEl.textContent = fmt(pendente);
+  document.getElementById("pill-label").textContent =
+    pendente < totalGeral ? "💸 Pendente (Jun–Dez)" : "💸 Total geral (Jun–Dez)";
 
   document.getElementById("home-months").innerHTML = monthTotals.map((m, i) => {
     const c = COLORS[i];
     const pct = maxTotal ? (m.total / maxTotal * 100).toFixed(0) : 0;
+    const pagoClass = m.mesPago ? " mes-pago" : "";
+    const badge = m.mesPago ? '<span class="pago-badge">✓ PAGO</span>' : "";
+    const btnLabel = m.mesPago ? "Desmarcar" : "Pagar mês";
+    const btnClass = m.mesPago ? " pago-ativo" : "";
     return `
-      <div class="month-row" onclick="goTo('meses')">
-        <div class="month-left">
+      <div class="month-row${pagoClass}">
+        <div class="month-left" onclick="goTo('meses')" style="cursor:pointer;flex:1">
           <div class="month-dot" style="background:${c}18;color:${c}">${m.key}</div>
           <div>
-            <div class="month-name">${m.name}</div>
+            <div class="month-name">${m.name} ${badge}</div>
             <div class="month-items">F ${fmt(m.totalFixas)} · P ${fmt(m.totalParceladas)} · V ${fmt(m.totalAvista)}</div>
           </div>
         </div>
-        <div>
-          <div class="month-value" style="color:${c}">${fmt(m.total)}</div>
-          <div class="month-bar-wrap"><div class="month-bar" style="width:${pct}%;background:${c}"></div></div>
+        <div style="display:flex;align-items:center;gap:10px">
+          <button class="btn-marcar-mes${btnClass}" onclick="event.stopPropagation();toggleMesPago('${m.key}')">${btnLabel}</button>
+          <div>
+            <div class="month-value" style="color:${m.mesPago ? 'var(--accent)' : c}">${fmt(m.total)}</div>
+            <div class="month-bar-wrap"><div class="month-bar" style="width:${pct}%;background:${m.mesPago ? 'var(--accent)' : c}"></div></div>
+          </div>
         </div>
       </div>`;
   }).join("");
@@ -1346,17 +1509,35 @@ function toggleCartao(cartaoId) {
 }
 
 function renderDividaItem(o, tipo, removeFn, valorStr, sub) {
+  const checkSvg = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>`;
+  // Determine paid status
+  let pago = false;
+  if (tipo === "avista") {
+    pago = isItemPago("avista", o.id, o.mes);
+  } else if (tipo === "parcelada") {
+    // Paid if ALL months of this installment are paid
+    pago = o.meses && o.meses.length > 0 && o.meses.every(m => isItemPago("parcelada", o.id, m));
+  }
+  const btnClass = pago ? " checked" : "";
+  const cardStyle = pago ? "margin-bottom:8px;opacity:0.5;padding-right:80px;" : "margin-bottom:8px;padding-right:80px;";
+  const nameStyle = pago ? "text-decoration:line-through;opacity:0.7" : "";
+  const toggleFn = tipo === "avista"
+    ? `toggleItemPago('avista','${o.id}','${o.mes}')`
+    : `toggleAllParceladaMeses('${o.id}')`;
   return `
-    <div class="parcela-card" style="margin-bottom:8px">
+    <div class="parcela-card" style="${cardStyle}">
       ${btnRemove(removeFn)}
+      <button class="btn-pago-toggle${btnClass}" onclick="event.stopPropagation();${toggleFn}" title="${pago ? 'Desmarcar' : 'Marcar como pago'}" style="position:absolute;top:10px;right:44px">
+        ${checkSvg}
+      </button>
       <div class="parcela-icon" style="background:${o.cor}18">${o.emoji || "💳"}</div>
       <div class="parcela-info">
-        <div class="parcela-name">${esc(o.item)}${o.loja ? " — " + esc(o.loja) : ""}</div>
-        <div class="parcela-loja">${sub}</div>
+        <div class="parcela-name" style="${nameStyle}">${esc(o.item)}${o.loja ? " — " + esc(o.loja) : ""}</div>
+        <div class="parcela-loja">${sub}${pago ? ' · <span style="color:var(--accent)">✓ Pago</span>' : ''}</div>
         <div class="parcela-tags"><span class="tag tag-${tipo}">${tipo === "avista" ? "À vista" : "Parcelada"}</span></div>
       </div>
       <div class="parcela-right">
-        <div class="parcela-value" style="color:${o.cor}">${valorStr}</div>
+        <div class="parcela-value" style="color:${pago ? 'var(--accent)' : o.cor}">${valorStr}</div>
       </div>
     </div>`;
 }
@@ -1393,37 +1574,90 @@ function renderMeses(monthTotals, maxTotal) {
     const c = COLORS[i];
     const pct = maxTotal ? (m.total / maxTotal * 100).toFixed(0) : 0;
     const detailId = "mes-detail-" + i;
-    const detailHtml = m.items.map(p => `
-      <div class="mes-detail-item">
-        <div class="mes-detail-left">
+    const paidCount = m.items.filter(p => p._pago).length;
+    const totalCount = m.items.length;
+    const allPaid = totalCount > 0 && paidCount === totalCount;
+    const mesClass = allPaid ? " mes-pago" : "";
+    const barColor = allPaid ? "var(--accent)" : c;
+
+    const detailHtml = m.items.map(p => {
+      const pago = p._pago;
+      const pagoClass = pago ? " pago" : "";
+      return `
+      <div class="mes-detail-item${pagoClass}">
+        <div class="mes-detail-left" style="flex:1">
           <span class="mes-detail-emoji">${p.emoji}</span>
           ${esc(p.loja || "")}${p.loja ? " — " : ""}${esc(p.label || p.item)}${p.tipo === "fixa" ? " · " + vencimentoLabel(p.vencimento || 1) : p.tipo === "avista" ? " · à vista" : " · parcelada"}
         </div>
         <div class="mes-detail-val">${fmt(p.parcela)}</div>
-      </div>`).join("") || '<p style="padding:8px 0;font-size:12px;color:var(--muted)">Nenhum item neste mês</p>';
+      </div>`;
+    }).join("") || '<p style="padding:8px 0;font-size:12px;color:var(--muted)">Nenhum item neste mês</p>';
+
+    const badgeHtml = allPaid ? ' <span class="pago-badge">✓ PAGO</span>' : "";
+    const pagoInfo = totalCount > 0 ? ` · ${paidCount}/${totalCount} pagos` : "";
+
     return `
-      <div class="mes-item" onclick="toggleMes('${detailId}')">
+      <div class="mes-item${mesClass}" onclick="toggleMes('${detailId}')">
         <div class="mes-header">
           <div class="mes-left">
             <div class="mes-badge" style="background:${c}18;color:${c}">${m.key}</div>
             <div>
-              <div class="mes-title">${m.name} 2026</div>
-              <div class="mes-count">${m.items.length} item${m.items.length > 1 ? "s" : ""}</div>
+              <div class="mes-title">${m.name} 2026${badgeHtml}</div>
+              <div class="mes-count">${m.items.length} item${m.items.length > 1 ? "s" : ""}${pagoInfo}</div>
             </div>
           </div>
-          <div class="mes-total" style="color:${c}">${fmt(m.total)}</div>
+          <div class="mes-total" style="color:${allPaid ? 'var(--accent)' : c}">${fmt(m.total)}</div>
         </div>
-        <div class="mes-progress"><div class="mes-bar" style="width:${pct}%;background:${c}"></div></div>
+        <div class="mes-progress"><div class="mes-bar" style="width:${pct}%;background:${barColor}"></div></div>
         <div class="mes-detail" id="${detailId}">${detailHtml}</div>
       </div>`;
   }).join("");
 }
 
+function renderChartFilters() {
+  const opts = ["Todas", ...data.cartoes.map(c => c.emoji + " " + c.nome)];
+  const row = document.getElementById("chart-filter-row");
+  row.innerHTML = "";
+  opts.forEach(l => {
+    const chip = document.createElement("button");
+    chip.className = "filter-chip" + (l === activeChartFilter ? " active" : "");
+    chip.textContent = l;
+    chip.onclick = () => {
+      activeChartFilter = l;
+      renderChartFilters();
+      renderCharts(getMonthTotals());
+    };
+    row.appendChild(chip);
+  });
+}
+
 function renderCharts(monthTotals) {
+  // Build chart filter
+  renderChartFilters();
+
+  // Find selected card ID
+  let filterCartaoId = null;
+  if (activeChartFilter !== "Todas") {
+    const cartao = data.cartoes.find(c => (c.emoji + " " + c.nome) === activeChartFilter);
+    if (cartao) filterCartaoId = cartao.id;
+  }
+
+  // Build pie data based on filter
   const lojaMap = {};
-  data.parceladas.forEach(p => { lojaMap[nomeCartao(p.cartaoId) + " · " + p.loja] = (lojaMap[nomeCartao(p.cartaoId) + " · " + p.loja] || 0) + p.parcela; });
-  data.avista.forEach(a => { lojaMap[nomeCartao(a.cartaoId) + " (à vista)"] = (lojaMap[nomeCartao(a.cartaoId) + " (à vista)"] || 0) + a.valor; });
-  data.fixas.forEach(f => { lojaMap[(f.loja || "Fixa") + " (fixa)"] = (lojaMap[(f.loja || "Fixa") + " (fixa)"] || 0) + f.valor; });
+  if (!filterCartaoId) {
+    // All debts
+    data.parceladas.forEach(p => { lojaMap[nomeCartao(p.cartaoId) + " · " + p.loja] = (lojaMap[nomeCartao(p.cartaoId) + " · " + p.loja] || 0) + p.parcela; });
+    data.avista.forEach(a => { lojaMap[nomeCartao(a.cartaoId) + " (à vista)"] = (lojaMap[nomeCartao(a.cartaoId) + " (à vista)"] || 0) + a.valor; });
+    data.fixas.forEach(f => { lojaMap[(f.loja || "Fixa") + " (fixa)"] = (lojaMap[(f.loja || "Fixa") + " (fixa)"] || 0) + f.valor; });
+  } else {
+    // Filtered by specific card
+    data.parceladas.filter(p => p.cartaoId === filterCartaoId).forEach(p => {
+      lojaMap[p.item + " — " + p.loja] = (lojaMap[p.item + " — " + p.loja] || 0) + p.parcela;
+    });
+    data.avista.filter(a => a.cartaoId === filterCartaoId).forEach(a => {
+      lojaMap[a.item + " (à vista)"] = (lojaMap[a.item + " (à vista)"] || 0) + a.valor;
+    });
+  }
   const pieLabels = Object.keys(lojaMap);
   const pieValues = Object.values(lojaMap);
   const pieColors = ["#00D9A5", "#F9A8D4", "#FCD34D", "#93C5FD", "#C4B5FD", "#FCA5A5", "#6EE7B7"];
@@ -1454,11 +1688,19 @@ function renderCharts(monthTotals) {
   }).join("");
   }
 
+  // Build bar data based on filter
+  const barData = monthTotals.map(m => {
+    if (!filterCartaoId) return m.total;
+    const parc = data.parceladas.filter(p => p.cartaoId === filterCartaoId && p.meses.includes(m.key)).reduce((s, p) => s + p.parcela, 0);
+    const av = data.avista.filter(a => a.cartaoId === filterCartaoId && a.mes === m.key).reduce((s, a) => s + a.valor, 0);
+    return parc + av;
+  });
+
   barChart = new Chart(document.getElementById("barChart"), {
     type: "bar",
     data: {
       labels: monthTotals.map(m => m.key),
-      datasets: [{ data: monthTotals.map(m => m.total), backgroundColor: COLORS, borderRadius: 8, borderWidth: 0 }]
+      datasets: [{ data: barData, backgroundColor: COLORS, borderRadius: 8, borderWidth: 0 }]
     },
     options: {
       responsive: true, maintainAspectRatio: false,
