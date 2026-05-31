@@ -164,7 +164,7 @@
 
   /* AÇÕES */
   .parcela-card { position:relative; }
-  .btn-remove { position:absolute; top:10px; right:10px; width:32px; height:32px; border-radius:10px; border:1px solid rgba(255,107,107,0.25); background:rgba(255,107,107,0.1); color:var(--accent2); cursor:pointer; display:flex; align-items:center; justify-content:center; transition:background .15s; }
+  .btn-remove { position:absolute; top:10px; right:10px; width:32px; height:32px; border-radius:10px; border:1px solid rgba(255,107,107,0.25); background:rgba(255,107,107,0.1); color:var(--accent2); cursor:pointer; display:flex; align-items:center; justify-content:center; transition:background .15s;  z-index:5; pointer-events:auto;}
   .btn-remove:active { background:rgba(255,107,107,0.25); }
   .btn-remove svg { width:16px; height:16px; }
 
@@ -403,6 +403,22 @@
 .year-select:hover { border-color:var(--accent); box-shadow:0 0 10px rgba(0,217,165,0.2); }
 .year-select-wrap::after { content:'▼'; font-size:8px; color:var(--muted); position:absolute; right:14px; pointer-events:none; }
 
+
+/* ===== MOBILE TWEAKS ===== */
+@media (max-width: 480px) {
+  .parcela-card { padding-right: 60px; }
+  .btn-remove {
+    width: 44px;
+    height: 44px;
+    top: 8px;
+    right: 8px;
+    border-radius: 12px;
+    z-index: 5;
+    pointer-events: auto;
+    touch-action: manipulation;
+  }
+  .btn-remove svg { width: 18px; height: 18px; }
+}
 </style>
 </head>
 <body>
@@ -1591,7 +1607,15 @@ async function zerarTodosDados() {
 }
 
 function renderHome(monthTotals, maxTotal) {
-  const currentMonthIdx = new Date().getFullYear() === activeYear ? new Date().getMonth() : 0;
+  const now = new Date();
+  let currentMonthIdx = now.getFullYear() === activeYear ? now.getMonth() : 0;
+  // Se o mes atual nao tem nada, mostra automaticamente o proximo mes com dividas.
+  if (monthTotals[currentMonthIdx] && (monthTotals[currentMonthIdx].total || 0) === 0) {
+    const forward = monthTotals.findIndex((m, i) => i >= currentMonthIdx && (m.total || 0) > 0);
+    const wrapAround = monthTotals.findIndex(m => (m.total || 0) > 0);
+    if (forward !== -1) currentMonthIdx = forward;
+    else if (wrapAround !== -1) currentMonthIdx = wrapAround;
+  }
   const mesData = monthTotals[currentMonthIdx];
   const mesKey = mesData.key;
   const mesName = mesData.name;
@@ -1660,7 +1684,15 @@ function renderFilters() {
 }
 
 function renderParceladas() {
-  const currentMonthIdx = new Date().getFullYear() === activeYear ? new Date().getMonth() : 0;
+  const now = new Date();
+  let currentMonthIdx = now.getFullYear() === activeYear ? now.getMonth() : 0;
+  // Se o mes atual nao tem nada, mostra automaticamente o proximo mes com dividas.
+  if (monthTotals[currentMonthIdx] && (monthTotals[currentMonthIdx].total || 0) === 0) {
+    const forward = monthTotals.findIndex((m, i) => i >= currentMonthIdx && (m.total || 0) > 0);
+    const wrapAround = monthTotals.findIndex(m => (m.total || 0) > 0);
+    if (forward !== -1) currentMonthIdx = forward;
+    else if (wrapAround !== -1) currentMonthIdx = wrapAround;
+  }
   const mesKey = activeYear + "-" + ALL_MONTHS[currentMonthIdx];
   const monthName = MONTH_NAMES[currentMonthIdx];
 
