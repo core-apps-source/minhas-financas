@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8">
@@ -164,7 +164,7 @@
 
   /* AÇÕES */
   .parcela-card { position:relative; }
-  .btn-remove { position:absolute; top:10px; right:10px; width:32px; height:32px; border-radius:10px; border:1px solid rgba(255,107,107,0.25); background:rgba(255,107,107,0.1); color:var(--accent2); cursor:pointer; display:flex; align-items:center; justify-content:center; transition:background .15s;  z-index:5; pointer-events:auto;}
+  .btn-remove { position:absolute; top:10px; right:10px; width:32px; height:32px; border-radius:10px; border:1px solid rgba(255,107,107,0.25); background:rgba(255,107,107,0.1); color:var(--accent2); cursor:pointer; display:flex; align-items:center; justify-content:center; transition:background .15s; }
   .btn-remove:active { background:rgba(255,107,107,0.25); }
   .btn-remove svg { width:16px; height:16px; }
 
@@ -403,22 +403,6 @@
 .year-select:hover { border-color:var(--accent); box-shadow:0 0 10px rgba(0,217,165,0.2); }
 .year-select-wrap::after { content:'▼'; font-size:8px; color:var(--muted); position:absolute; right:14px; pointer-events:none; }
 
-
-/* ===== MOBILE TWEAKS ===== */
-@media (max-width: 480px) {
-  .parcela-card { padding-right: 60px; }
-  .btn-remove {
-    width: 44px;
-    height: 44px;
-    top: 8px;
-    right: 8px;
-    border-radius: 12px;
-    z-index: 5;
-    pointer-events: auto;
-    touch-action: manipulation;
-  }
-  .btn-remove svg { width: 18px; height: 18px; }
-}
 </style>
 </head>
 <body>
@@ -465,7 +449,10 @@
           <div class="page-title">Visão Geral</div>
           <div class="page-heading">Minhas Finanças</div>
         </div>
-        <div class="year-select-placeholder"></div>
+        <div style="display:flex; gap:8px;">
+          <div class="month-select-placeholder"></div>
+          <div class="year-select-placeholder"></div>
+        </div>
       </div>
 
       <div class="hero-card fadein fadein-1">
@@ -497,6 +484,8 @@
           <div class="stat-sub" id="stat-cartoes-sub">fatura</div>
         </div>
       </div>
+
+
 
       <div class="section-title fadein fadein-3">Próximos meses</div>
       <div class="month-preview fadein fadein-4" id="home-months"></div>
@@ -635,7 +624,10 @@
           <div class="page-title">Cartão / loja</div>
           <div class="page-heading">Dívidas Parceladas</div>
         </div>
-        <div class="year-select-placeholder"></div>
+        <div style="display:flex; gap:8px;">
+          <div class="month-select-placeholder"></div>
+          <div class="year-select-placeholder"></div>
+        </div>
       </div>
       <div class="total-card-sm parceladas">
         <div class="tc-label" id="parceladas-tc-label">Total dívidas parceladas</div>
@@ -933,6 +925,7 @@ const esc = s => String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/"
 
 let data = loadData();
 let activeYear = data.activeYear || new Date().getFullYear();
+let activeMonthIdx = data.activeMonthIdx !== undefined ? data.activeMonthIdx : new Date().getMonth();
 let currentUser = null;
 let syncReady = false;
 let isApplyingRemoteData = false;
@@ -959,7 +952,7 @@ function normCartao(c) {
 }
 
 function dadosVazios() {
-  return { version: 3, activeYear: new Date().getFullYear(), cartoes: [], fixas: [], parceladas: [], avista: [], pagos: { itens: {}, meses: [] } };
+  return { version: 3, activeYear: new Date().getFullYear(), activeMonthIdx: new Date().getMonth(), cartoes: [], fixas: [], parceladas: [], avista: [], pagos: { itens: {}, meses: [] } };
 }
 
 function migrateDataToV3(d) {
@@ -1020,6 +1013,7 @@ function normalizeFinanceData(d) {
   return {
     version: 3,
     activeYear: d.activeYear || new Date().getFullYear(),
+    activeMonthIdx: d.activeMonthIdx !== undefined ? d.activeMonthIdx : new Date().getMonth(),
     cartoes: (d.cartoes || []).map(normCartao),
     fixas: (d.fixas || []).map(normFixa),
     parceladas: (d.parceladas || []).map(normParcelada),
@@ -1038,7 +1032,7 @@ function loadData() {
 }
 
 function dataSnapshot() {
-  return { ...data, version: 3, activeYear, updatedAt: new Date().toISOString() };
+  return { ...data, version: 3, activeYear, activeMonthIdx, updatedAt: new Date().toISOString() };
 }
 
 function saveLocalData(snapshot = dataSnapshot()) {
@@ -1069,7 +1063,8 @@ function applyRemoteData(remoteData) {
   isApplyingRemoteData = true;
   data = normalizeFinanceData(remoteData);
   activeYear = data.activeYear || new Date().getFullYear();
-  saveLocalData({ ...data, version: 3, activeYear });
+  activeMonthIdx = data.activeMonthIdx !== undefined ? data.activeMonthIdx : new Date().getMonth();
+  saveLocalData({ ...data, version: 3, activeYear, activeMonthIdx });
   isApplyingRemoteData = false;
   fillMesSelects();
   fillCartaoSelects();
@@ -1602,15 +1597,7 @@ async function zerarTodosDados() {
 }
 
 function renderHome(monthTotals, maxTotal) {
-  const now = new Date();
-  let currentMonthIdx = now.getFullYear() === activeYear ? now.getMonth() : 0;
-  // Se o mes atual nao tem nada, mostra automaticamente o proximo mes com dividas.
-  if (monthTotals[currentMonthIdx] && (monthTotals[currentMonthIdx].total || 0) === 0) {
-    const forward = monthTotals.findIndex((m, i) => i >= currentMonthIdx && (m.total || 0) > 0);
-    const wrapAround = monthTotals.findIndex(m => (m.total || 0) > 0);
-    if (forward !== -1) currentMonthIdx = forward;
-    else if (wrapAround !== -1) currentMonthIdx = wrapAround;
-  }
+  const currentMonthIdx = activeMonthIdx;
   const mesData = monthTotals[currentMonthIdx];
   const mesKey = mesData.key;
   const mesName = mesData.name;
@@ -1623,7 +1610,7 @@ function renderHome(monthTotals, maxTotal) {
   document.getElementById("stat-avista").textContent = fmt(mesData.totalAvista);
   document.getElementById("stat-cartoes").textContent = fmt(totalCartoesMes(mesKey));
 
-  document.getElementById("hero-badge").textContent = `Janeiro–Dezembro ${activeYear}`;
+  document.getElementById("hero-badge").textContent = `${mesName} ${activeYear}`;
   document.getElementById("stat-cartoes-sub").textContent = `fatura ${mesName.toLowerCase()}`;
 
   document.getElementById("home-months").innerHTML = monthTotals.map((m, i) => {
@@ -1672,15 +1659,7 @@ function renderFilters() {
 }
 
 function renderParceladas() {
-  const now = new Date();
-  let currentMonthIdx = now.getFullYear() === activeYear ? now.getMonth() : 0;
-  // Se o mes atual nao tem nada, mostra automaticamente o proximo mes com dividas.
-  if (monthTotals[currentMonthIdx] && (monthTotals[currentMonthIdx].total || 0) === 0) {
-    const forward = monthTotals.findIndex((m, i) => i >= currentMonthIdx && (m.total || 0) > 0);
-    const wrapAround = monthTotals.findIndex(m => (m.total || 0) > 0);
-    if (forward !== -1) currentMonthIdx = forward;
-    else if (wrapAround !== -1) currentMonthIdx = wrapAround;
-  }
+  const currentMonthIdx = activeMonthIdx;
   const mesKey = activeYear + "-" + ALL_MONTHS[currentMonthIdx];
   const monthName = MONTH_NAMES[currentMonthIdx];
 
@@ -1690,16 +1669,18 @@ function renderParceladas() {
     data.parceladas.length + ` parcelada(s) · Jan–Dez / ${activeYear}: ` + fmt(totalParceladasPeriodo());
 
   const list = document.getElementById("parcela-list");
-  let filtered = data.parceladas;
+  let filtered = data.parceladas.filter(p => p.meses.includes(mesKey));
   if (activeFilter !== "Todas") {
     filtered = filtered.filter(p => (nomeCartao(p.cartaoId) + " · " + p.loja) === activeFilter);
   }
   if (!filtered.length) {
-    list.innerHTML = '<p class="empty-msg">Nenhuma dívida parcelada. Cadastre em Cartões.</p>';
+    list.innerHTML = `<p class="empty-msg">Nenhuma parcela ativa em ${monthName} de ${activeYear}.</p>`;
     return;
   }
   list.innerHTML = filtered.map(p => {
-    const remaining = p.meses.length;
+    const mesIdxInParcela = p.meses.indexOf(mesKey);
+    const nParcela = mesIdxInParcela + 1;
+    const totalParcelas = p.meses.length;
     const cartao = getCartao(p.cartaoId);
     return `
       <div class="parcela-card">
@@ -1709,14 +1690,14 @@ function renderParceladas() {
           <div class="parcela-name">${esc(p.item)} — ${esc(p.loja)}</div>
           <div class="parcela-loja">${cartao ? cartao.emoji + " " + esc(cartao.nome) : "Sem cartão"} · até ${esc(p.ultimo)}</div>
           <div class="parcela-tags">
-            <span class="tag tag-parcelada">Parcelada</span>
-            <span class="tag" style="background:${p.cor}20;color:${p.cor}">${remaining}x</span>
+            <span class="tag tag-parcelada">Parcela ${nParcela}/${totalParcelas}</span>
+            <span class="tag" style="background:${p.cor}20;color:${p.cor}">${totalParcelas}x</span>
           </div>
         </div>
         <div class="parcela-right">
           <div class="parcela-value" style="color:${p.cor}">${fmt(p.parcela)}</div>
           <div class="parcela-month">/mês</div>
-          <div class="parcela-month" style="margin-top:4px;color:var(--muted2)">${fmt(p.parcela * remaining)} total</div>
+          <div class="parcela-month" style="margin-top:4px;color:var(--muted2)">${fmt(p.parcela * totalParcelas)} total</div>
         </div>
       </div>`;
   }).join("");
@@ -2018,8 +1999,12 @@ function renderCharts(monthTotals) {
       lojaMap[a.item + " (à vista)"] = (lojaMap[a.item + " (à vista)"] || 0) + a.valor;
     });
   }
-  const pieLabels = Object.keys(lojaMap);
-  const pieValues = Object.values(lojaMap);
+  // Sort from largest to smallest value
+  const chartItems = Object.entries(lojaMap).map(([label, value]) => ({ label, value }));
+  chartItems.sort((a, b) => b.value - a.value);
+
+  const pieLabels = chartItems.map(item => item.label);
+  const pieValues = chartItems.map(item => item.value);
   const pieColors = ["#00D9A5", "#F9A8D4", "#FCD34D", "#93C5FD", "#C4B5FD", "#FCA5A5", "#6EE7B7"];
   const totalMensal = pieValues.reduce((s, v) => s + v, 0) || 1;
 
@@ -2088,14 +2073,34 @@ function renderYearSelectors() {
   });
 }
 
+function renderMonthSelectors() {
+  const placeholders = document.querySelectorAll(".month-select-placeholder");
+  placeholders.forEach(el => {
+    el.innerHTML = `
+      <div class="year-select-wrap">
+        <select class="year-select" onchange="changeActiveMonth(parseInt(this.value, 10))">
+          ${MONTH_NAMES.map((m, i) => `<option value="${i}" ${i === activeMonthIdx ? "selected" : ""}>${m}</option>`).join("")}
+        </select>
+      </div>
+    `;
+  });
+}
+
 function changeActiveYear(year) {
   activeYear = year;
   saveData();
   renderAll();
 }
 
+function changeActiveMonth(monthIdx) {
+  activeMonthIdx = monthIdx;
+  saveData();
+  renderAll();
+}
+
 function renderAll() {
   renderYearSelectors();
+  renderMonthSelectors();
   const monthTotals = getMonthTotals();
   const maxTotal = Math.max(1, ...monthTotals.map(m => m.total));
   renderHome(monthTotals, maxTotal);
