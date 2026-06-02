@@ -378,6 +378,14 @@
 .divida-actions .btn-remove {
   width:26px; height:26px; border-radius:50%;
 }
+.divida-pay-chip {
+  border:1px solid rgba(0,217,165,0.28); background:rgba(0,217,165,0.09);
+  color:var(--accent); font-family:'DM Sans',sans-serif; font-size:10px; font-weight:700;
+  padding:4px 8px; border-radius:99px; cursor:pointer; white-space:nowrap;
+}
+.divida-pay-chip.checked {
+  background:rgba(0,217,165,0.2); border-color:rgba(0,217,165,0.45); color:var(--accent);
+}
 .cartao-itens-inner .parcela-card {
   padding:12px 10px 12px 12px; gap:8px;
 }
@@ -1842,7 +1850,6 @@ function toggleCartao(cartaoId) {
 }
 
 function renderDividaItem(o, tipo, removeFn, valorStr, sub) {
-  const checkSvg = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>`;
   // Determine paid status
   let pago = false;
   if (tipo === "avista") {
@@ -1852,6 +1859,7 @@ function renderDividaItem(o, tipo, removeFn, valorStr, sub) {
     pago = o.meses && o.meses.length > 0 && o.meses.every(m => isItemPago("parcelada", o.id, m));
   }
   const btnClass = pago ? " checked" : "";
+  const payLabel = pago ? "Desmarcar" : "Pagar divida";
   const cardStyle = pago ? "margin-bottom:8px;opacity:0.5;" : "margin-bottom:8px;";
   const nameStyle = pago ? "text-decoration:line-through;opacity:0.7" : "";
   const toggleFn = tipo === "avista"
@@ -1863,15 +1871,15 @@ function renderDividaItem(o, tipo, removeFn, valorStr, sub) {
       <div class="parcela-info">
         <div class="parcela-name" style="${nameStyle}">${esc(o.item)}${o.loja ? " — " + esc(o.loja) : ""}</div>
         <div class="parcela-loja">${sub}${pago ? ' · <span style="color:var(--accent)">✓ Pago</span>' : ''}</div>
-        <div class="parcela-tags"><span class="tag tag-${tipo}">${tipo === "avista" ? "À vista" : "Parcelada"}</span></div>
+        <div class="parcela-tags">
+          <button type="button" class="divida-pay-chip${btnClass}" onclick="event.stopPropagation();${toggleFn}">${payLabel}</button>
+          <span class="tag tag-${tipo}">${tipo === "avista" ? "A vista" : "Parcelada"}</span>
+        </div>
       </div>
       <div class="parcela-right">
         <div class="parcela-value" style="color:${pago ? 'var(--accent)' : o.cor}">${valorStr}</div>
       </div>
       <div class="divida-actions">
-        <button class="btn-pago-toggle${btnClass}" onclick="event.stopPropagation();${toggleFn}" title="${pago ? 'Desmarcar' : 'Marcar como pago'}">
-          ${checkSvg}
-        </button>
         ${btnRemove(removeFn)}
       </div>
     </div>`;
