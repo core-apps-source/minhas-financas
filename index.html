@@ -386,6 +386,17 @@
 .divida-pay-chip.checked {
   background:rgba(0,217,165,0.2); border-color:rgba(0,217,165,0.45); color:var(--accent);
 }
+.divida-meta-row {
+  display:flex; align-items:center; flex-wrap:wrap; gap:6px; margin-top:2px;
+}
+.divida-meta-row .parcela-loja { margin-top:0; }
+.divida-inline-value {
+  margin-left:4px; font-size:14px; white-space:nowrap;
+}
+.divida-meta-row .btn-remove {
+  position:static !important; top:auto !important; right:auto !important;
+  width:24px; height:24px; border-radius:50%;
+}
 .cartao-itens-inner .parcela-card {
   padding:12px 10px 12px 12px; gap:8px;
 }
@@ -1803,8 +1814,8 @@ function renderCartoes() {
   }
   wrap.innerHTML = data.cartoes.map(c => {
     const fatura = faturaCartaoMes(c.id, mesKey);
-    const parc = data.parceladas.filter(p => p.cartaoId === c.id);
-    const av = data.avista.filter(a => a.cartaoId === c.id);
+    const parc = data.parceladas.filter(p => p.cartaoId === c.id && p.meses.includes(mesKey));
+    const av = data.avista.filter(a => a.cartaoId === c.id && a.mes === mesKey);
     const itens = [
       ...av.map(a => renderDividaItem(a, "avista", `removerAvista('${a.id}')`, fmt(a.valor), formatMesLabel(a.mes))),
       ...parc.map(p => {
@@ -1867,20 +1878,18 @@ function renderDividaItem(o, tipo, removeFn, valorStr, sub) {
     : `toggleAllParceladaMeses('${o.id}')`;
   return `
     <div class="parcela-card" style="${cardStyle}">
-      <div class="parcela-icon" style="background:${o.cor}18">${o.emoji || "💳"}</div>
+      <div class="parcela-icon" style="background:${o.cor}18">${o.emoji || "??"}</div>
       <div class="parcela-info">
-        <div class="parcela-name" style="${nameStyle}">${esc(o.item)}${o.loja ? " — " + esc(o.loja) : ""}</div>
-        <div class="parcela-loja">${sub}${pago ? ' · <span style="color:var(--accent)">✓ Pago</span>' : ''}</div>
-        <div class="parcela-tags">
+        <div class="parcela-name" style="${nameStyle}">${esc(o.item)}${o.loja ? " - " + esc(o.loja) : ""}</div>
+        <div class="divida-meta-row">
+          <span class="parcela-loja">${sub}${pago ? ' - <span style="color:var(--accent)">Pago</span>' : ''}</span>
+          <span class="parcela-value divida-inline-value" style="color:${pago ? 'var(--accent)' : o.cor}">${valorStr}</span>
           <button type="button" class="divida-pay-chip${btnClass}" onclick="event.stopPropagation();${toggleFn}">${payLabel}</button>
+          ${btnRemove(removeFn)}
+        </div>
+        <div class="parcela-tags">
           <span class="tag tag-${tipo}">${tipo === "avista" ? "A vista" : "Parcelada"}</span>
         </div>
-      </div>
-      <div class="parcela-right">
-        <div class="parcela-value" style="color:${pago ? 'var(--accent)' : o.cor}">${valorStr}</div>
-      </div>
-      <div class="divida-actions">
-        ${btnRemove(removeFn)}
       </div>
     </div>`;
 }
