@@ -368,6 +368,41 @@
   box-shadow:0 0 12px rgba(0,217,165,0.35);
 }
 .btn-pago-toggle.checked svg { opacity:1; }
+.divida-actions {
+  display:flex; flex-direction:column; align-items:center; gap:6px; flex-shrink:0;
+}
+.divida-actions .btn-remove,
+.divida-actions .btn-pago-toggle {
+  position:static !important; top:auto !important; right:auto !important;
+}
+.divida-actions .btn-remove {
+  width:26px; height:26px; border-radius:50%;
+}
+.cartao-itens-inner .parcela-card {
+  padding:12px 10px 12px 12px; gap:8px;
+}
+.cartao-itens-inner .parcela-icon {
+  width:38px; height:38px; border-radius:10px; font-size:18px;
+}
+.cartao-itens-inner .parcela-right {
+  min-width:max-content;
+}
+.cartao-itens-inner .parcela-value {
+  font-size:14px; white-space:nowrap;
+}
+.cartao-itens-inner .divida-actions {
+  gap:5px; margin-right:4px;
+}
+@media (max-width:420px) {
+  .cartao-grupo { margin:0 12px 18px; }
+  .cartao-itens-inner .parcela-card { padding:12px 8px; gap:7px; }
+  .cartao-itens-inner .parcela-icon { width:34px; height:34px; font-size:16px; }
+  .cartao-itens-inner .parcela-name { font-size:13px; }
+  .cartao-itens-inner .parcela-loja { font-size:10px; }
+  .cartao-itens-inner .parcela-value { font-size:13px; }
+  .cartao-itens-inner .btn-pago-toggle,
+  .cartao-itens-inner .divida-actions .btn-remove { width:24px; height:24px; }
+}
 
 .mes-detail-item.pago .mes-detail-left {
   text-decoration:line-through; opacity:0.45; color:var(--muted);
@@ -1817,17 +1852,13 @@ function renderDividaItem(o, tipo, removeFn, valorStr, sub) {
     pago = o.meses && o.meses.length > 0 && o.meses.every(m => isItemPago("parcelada", o.id, m));
   }
   const btnClass = pago ? " checked" : "";
-  const cardStyle = pago ? "margin-bottom:8px;opacity:0.5;padding-right:80px;" : "margin-bottom:8px;padding-right:80px;";
+  const cardStyle = pago ? "margin-bottom:8px;opacity:0.5;" : "margin-bottom:8px;";
   const nameStyle = pago ? "text-decoration:line-through;opacity:0.7" : "";
   const toggleFn = tipo === "avista"
     ? `toggleItemPago('avista','${o.id}','${o.mes}')`
     : `toggleAllParceladaMeses('${o.id}')`;
   return `
     <div class="parcela-card" style="${cardStyle}">
-      ${btnRemove(removeFn)}
-      <button class="btn-pago-toggle${btnClass}" onclick="event.stopPropagation();${toggleFn}" title="${pago ? 'Desmarcar' : 'Marcar como pago'}" style="position:absolute;top:10px;right:44px">
-        ${checkSvg}
-      </button>
       <div class="parcela-icon" style="background:${o.cor}18">${o.emoji || "💳"}</div>
       <div class="parcela-info">
         <div class="parcela-name" style="${nameStyle}">${esc(o.item)}${o.loja ? " — " + esc(o.loja) : ""}</div>
@@ -1836,6 +1867,12 @@ function renderDividaItem(o, tipo, removeFn, valorStr, sub) {
       </div>
       <div class="parcela-right">
         <div class="parcela-value" style="color:${pago ? 'var(--accent)' : o.cor}">${valorStr}</div>
+      </div>
+      <div class="divida-actions">
+        <button class="btn-pago-toggle${btnClass}" onclick="event.stopPropagation();${toggleFn}" title="${pago ? 'Desmarcar' : 'Marcar como pago'}">
+          ${checkSvg}
+        </button>
+        ${btnRemove(removeFn)}
       </div>
     </div>`;
 }
@@ -2096,6 +2133,3 @@ document.querySelectorAll(".nav-btn").forEach(btn => {
 </script>
 </body>
 </html>
-
-
-
