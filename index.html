@@ -15,7 +15,20 @@
 <script>
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('./sw.js')
-      .then(() => console.log('Service Worker Registrado com Sucesso'))
+      .then((reg) => {
+        // Pull the newest SW as soon as possible.
+        if (reg && reg.update) reg.update();
+
+        // When a new SW takes control, reload once to receive the new app version.
+        let refreshing = false;
+        navigator.serviceWorker.addEventListener('controllerchange', () => {
+          if (refreshing) return;
+          refreshing = true;
+          window.location.reload();
+        });
+
+        console.log('Service Worker Registrado com Sucesso');
+      })
       .catch((error) => console.log('Falha ao registrar o Service Worker:', error));
   }
 </script>
@@ -403,11 +416,54 @@
 .year-select:hover { border-color:var(--accent); box-shadow:0 0 10px rgba(0,217,165,0.2); }
 .year-select-wrap::after { content:'▼'; font-size:8px; color:var(--muted); position:absolute; right:14px; pointer-events:none; }
 
+
+  /* Switch celular / PC */
+  .viewport-toggle {
+    position:fixed;
+    top:14px;
+    left:50%;
+    transform:translateX(-50%);
+    z-index:50;
+    display:flex;
+    gap:6px;
+    padding:5px;
+    border:1px solid var(--border);
+    border-radius:14px;
+    background:rgba(8,8,16,0.78);
+    backdrop-filter:blur(18px);
+  }
+  .viewport-toggle button {
+    width:36px;
+    height:34px;
+    border:none;
+    border-radius:10px;
+    background:transparent;
+    color:var(--muted);
+    font-size:17px;
+    cursor:pointer;
+  }
+  .viewport-toggle button.active {
+    background:var(--accent);
+    color:#000;
+  }
+  body.viewport-mobile {
+    background:#05060a;
+  }
+  body.viewport-mobile #app {
+    width:min(100vw, 430px);
+    max-width:430px;
+    margin:0 auto;
+    border-left:1px solid var(--border);
+    border-right:1px solid var(--border);
+    box-shadow:0 0 60px rgba(0,0,0,0.45);
+  }
 </style>
 </head>
 <body>
-
-<div id="auth-screen">
+<div class="viewport-toggle" id="viewport-toggle" aria-label="Alternar visualizacao">
+  <button type="button" data-viewport-mode="mobile" title="Modo celular">📱</button>
+  <button type="button" data-viewport-mode="desktop" title="Modo PC">🖥️</button>
+</div><div id="auth-screen">
   <div class="auth-box">
     <div class="auth-logo">💸</div>
     <div class="auth-title">Minhas Finanças</div>
@@ -449,10 +505,7 @@
           <div class="page-title">Visão Geral</div>
           <div class="page-heading">Minhas Finanças</div>
         </div>
-        <div style="display:flex; gap:8px;">
-          <div class="month-select-placeholder"></div>
-          <div class="year-select-placeholder"></div>
-        </div>
+        <div class="year-select-placeholder"></div>
       </div>
 
       <div class="hero-card fadein fadein-1">
@@ -485,7 +538,10 @@
         </div>
       </div>
 
-
+      <div class="total-pill fadein fadein-3">
+        <span class="total-pill-label" id="pill-label">💸 Total geral (Jun–Dez)</span>
+        <span class="total-pill-value" id="pill-total"></span>
+      </div>
 
       <div class="section-title fadein fadein-3">Próximos meses</div>
       <div class="month-preview fadein fadein-4" id="home-months"></div>
@@ -500,6 +556,14 @@
           <button class="btn-action import" onclick="document.getElementById('import-input').click()">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
             Restaurar backup
+          </button>
+          <button class="btn-action" onclick="cloudSaveNow()" style="border-color:rgba(0,217,165,0.3);background:rgba(0,217,165,0.08);color:var(--accent);">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            Salvar na nuvem
+          </button>
+          <button class="btn-action" onclick="cloudLoadNow()" style="border-color:rgba(116,185,255,0.3);background:rgba(116,185,255,0.08);color:var(--accent4);">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+            Recuperar da nuvem
           </button>
           <button class="btn-action danger" onclick="zerarTodosDados()">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>
@@ -624,10 +688,7 @@
           <div class="page-title">Cartão / loja</div>
           <div class="page-heading">Dívidas Parceladas</div>
         </div>
-        <div style="display:flex; gap:8px;">
-          <div class="month-select-placeholder"></div>
-          <div class="year-select-placeholder"></div>
-        </div>
+        <div class="year-select-placeholder"></div>
       </div>
       <div class="total-card-sm parceladas">
         <div class="tc-label" id="parceladas-tc-label">Total dívidas parceladas</div>
@@ -798,8 +859,14 @@
 // =====================================================
 const SUPABASE_URL = 'https://abvqnjezezwskcjmvhhm.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_8jZBXMIEY3I6GtWNCNMzhA_vtDgtS1p';
-const { createClient } = supabase;
-const db = createClient(SUPABASE_URL, SUPABASE_KEY);
+let db = null;
+try {
+  // When offline (or if CDN fails), `supabase` may be undefined. We keep the app usable locally.
+  const { createClient } = supabase;
+  db = createClient(SUPABASE_URL, SUPABASE_KEY);
+} catch (e) {
+  console.warn("Supabase indisponível (modo local/offline).", e);
+}
 
 // =====================================================
 //  AUTH
@@ -808,27 +875,30 @@ const Auth = {
   mode: 'login',
 
   async init() {
+    if (!db) {
+      // Offline/local mode: skip login and run the app with local storage only.
+      this.showApp(null);
+      return;
+    }
     const { data: { session } } = await db.auth.getSession();
-    if (session) await this.showApp(session);
-    db.auth.onAuthStateChange(async (event, session) => {
-      if (event === 'SIGNED_IN' && session) await this.showApp(session);
+    if (session) this.showApp(session);
+    db.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_IN' && session) this.showApp(session);
       if (event === 'SIGNED_OUT') this.showLogin();
     });
   },
 
-  async showApp(session) {
+  showApp(session) {
     currentUser = session?.user || null;
     document.getElementById('auth-screen').classList.add('hidden');
-    document.getElementById('logout-btn').classList.add('visible');
+    document.getElementById('logout-btn').classList.toggle('visible', !!(db && currentUser));
     // Inicializa o app
     fillMesSelects();
     fillCartaoSelects();
-    await initCloudSync();
     renderAll();
   },
 
   showLogin() {
-    cleanupCloudSync();
     currentUser = null;
     document.getElementById('auth-screen').classList.remove('hidden');
     document.getElementById('logout-btn').classList.remove('visible');
@@ -898,7 +968,7 @@ const Auth = {
     }
   },
 
-  async logout() { await db.auth.signOut(); },
+  async logout() { if (db) await db.auth.signOut(); },
 
   showError(msg) {
     const el = document.getElementById('auth-error');
@@ -925,12 +995,7 @@ const esc = s => String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/"
 
 let data = loadData();
 let activeYear = data.activeYear || new Date().getFullYear();
-let activeMonthIdx = data.activeMonthIdx !== undefined ? data.activeMonthIdx : new Date().getMonth();
 let currentUser = null;
-let syncReady = false;
-let isApplyingRemoteData = false;
-let remoteChannel = null;
-let saveTimer = null;
 let activeFilter = "Todas";
 let activeCartoesMonthIdx = new Date().getMonth();
 let pieChart = null, barChart = null;
@@ -952,7 +1017,7 @@ function normCartao(c) {
 }
 
 function dadosVazios() {
-  return { version: 3, activeYear: new Date().getFullYear(), activeMonthIdx: new Date().getMonth(), cartoes: [], fixas: [], parceladas: [], avista: [], pagos: { itens: {}, meses: [] } };
+  return { version: 3, activeYear: new Date().getFullYear(), cartoes: [], fixas: [], parceladas: [], avista: [], pagos: { itens: {}, meses: [] } };
 }
 
 function migrateDataToV3(d) {
@@ -1008,141 +1073,88 @@ function migrateDataToV3(d) {
   return d;
 }
 
-function normalizeFinanceData(d) {
-  d = migrateDataToV3(d || dadosVazios());
-  return {
-    version: 3,
-    activeYear: d.activeYear || new Date().getFullYear(),
-    activeMonthIdx: d.activeMonthIdx !== undefined ? d.activeMonthIdx : new Date().getMonth(),
-    cartoes: (d.cartoes || []).map(normCartao),
-    fixas: (d.fixas || []).map(normFixa),
-    parceladas: (d.parceladas || []).map(normParcelada),
-    avista: (d.avista || []).map(normAvista),
-    pagos: d.pagos || { itens: {}, meses: [] },
-    updatedAt: d.updatedAt || null
-  };
-}
-
 function loadData() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY) || localStorage.getItem("minhas-financas-v1");
-    if (raw) return normalizeFinanceData(JSON.parse(raw));
+    if (raw) {
+      let d = JSON.parse(raw);
+      d = migrateDataToV3(d);
+      
+      return {
+        version: 3,
+        activeYear: d.activeYear || new Date().getFullYear(),
+        cartoes: (d.cartoes || []).map(normCartao),
+        fixas: (d.fixas || []).map(normFixa),
+        parceladas: (d.parceladas || []).map(normParcelada),
+        avista: (d.avista || []).map(normAvista),
+        pagos: d.pagos || { itens: {}, meses: [] }
+      };
+    }
   } catch (e) {}
+  
   return dadosVazios();
 }
 
-function dataSnapshot() {
-  return { ...data, version: 3, activeYear, activeMonthIdx, updatedAt: new Date().toISOString() };
-}
-
-function saveLocalData(snapshot = dataSnapshot()) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(snapshot));
-}
-
 function saveData() {
-  const snapshot = dataSnapshot();
-  data.updatedAt = snapshot.updatedAt;
-  saveLocalData(snapshot);
-  if (!isApplyingRemoteData) queueCloudSync();
+  localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...data, version: 3, activeYear }));
 }
+
+
 // =====================================================
-//  SUPABASE DATA SYNC
+//  SUPABASE CLOUD (MANUAL)
 // =====================================================
 const SYNC_TABLE = "user_finances";
 
-function dataHasContent(d) {
-  return !!(d && ((d.cartoes || []).length || (d.fixas || []).length || (d.parceladas || []).length || (d.avista || []).length));
+function dataSnapshot() {
+  return { ...data, version: 3, activeYear, updatedAt: new Date().toISOString() };
 }
 
-function dataTimestamp(d) {
-  const time = Date.parse(d?.updatedAt || 0);
-  return Number.isFinite(time) ? time : 0;
-}
-
-function applyRemoteData(remoteData) {
-  isApplyingRemoteData = true;
-  data = normalizeFinanceData(remoteData);
+function applyRemoteSnapshot(snapshot) {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(snapshot));
+  } catch (e) {}
+  data = loadData();
   activeYear = data.activeYear || new Date().getFullYear();
-  activeMonthIdx = data.activeMonthIdx !== undefined ? data.activeMonthIdx : new Date().getMonth();
-  saveLocalData({ ...data, version: 3, activeYear, activeMonthIdx });
-  isApplyingRemoteData = false;
   fillMesSelects();
   fillCartaoSelects();
   renderAll();
 }
 
-function cleanupCloudSync() {
-  syncReady = false;
-  if (saveTimer) clearTimeout(saveTimer);
-  saveTimer = null;
-  if (remoteChannel) db.removeChannel(remoteChannel);
-  remoteChannel = null;
-}
-
-async function initCloudSync() {
-  if (!currentUser) return;
-  cleanupCloudSync();
-
-  const { data: row, error } = await db
-    .from(SYNC_TABLE)
-    .select("dados, updated_at")
-    .eq("user_id", currentUser.id)
-    .maybeSingle();
-
-  if (error) {
-    console.error("Erro ao carregar dados do Supabase", error);
-    showToast("Nao foi possivel sincronizar agora");
-  } else if (row?.dados) {
-    const localHasData = dataHasContent(data);
-    const remoteTime = Date.parse(row.updated_at || row.dados.updatedAt || 0) || 0;
-    const localTime = dataTimestamp(data);
-
-    if (!localHasData || remoteTime >= localTime) {
-      applyRemoteData({ ...row.dados, updatedAt: row.dados.updatedAt || row.updated_at });
-    } else {
-      await pushCloudData();
-    }
-  } else if (dataHasContent(data)) {
-    await pushCloudData();
-  }
-
-  remoteChannel = db
-    .channel(`financas-${currentUser.id}`)
-    .on("postgres_changes", {
-      event: "*",
-      schema: "public",
-      table: SYNC_TABLE,
-      filter: `user_id=eq.${currentUser.id}`
-    }, payload => {
-      if (!payload.new?.dados) return;
-      const remote = { ...payload.new.dados, updatedAt: payload.new.dados.updatedAt || payload.new.updated_at };
-      if (dataTimestamp(remote) <= dataTimestamp(data)) return;
-      applyRemoteData(remote);
-      showToast("Dados sincronizados");
-    })
-    .subscribe(status => {
-      if (status === "SUBSCRIBED") syncReady = true;
-    });
-}
-
-function queueCloudSync() {
-  if (!currentUser) return;
-  if (saveTimer) clearTimeout(saveTimer);
-  saveTimer = setTimeout(() => pushCloudData(), 500);
-}
-
-async function pushCloudData() {
-  if (!currentUser) return;
+async function cloudSaveNow() {
+  if (!db) { showToast("Nuvem indisponível (sem internet)"); return; }
+  if (!currentUser) { showToast("Entre na sua conta primeiro"); return; }
   const snapshot = dataSnapshot();
-  data.updatedAt = snapshot.updatedAt;
-  saveLocalData(snapshot);
-  const { error } = await db
-    .from(SYNC_TABLE)
-    .upsert({ user_id: currentUser.id, dados: snapshot, updated_at: snapshot.updatedAt }, { onConflict: "user_id" });
+  try {
+    const { error } = await db
+      .from(SYNC_TABLE)
+      .upsert({ user_id: currentUser.id, dados: snapshot, updated_at: snapshot.updatedAt }, { onConflict: "user_id" });
+    if (error) throw error;
+    showToast("Salvo na nuvem");
+  } catch (e) {
+    console.error("Erro ao salvar na nuvem", e);
+    showToast("Falha ao salvar na nuvem");
+  }
+}
 
-  if (error) {
-    console.error("Erro ao salvar no Supabase", error);
-    showToast("Salvo neste celular. Sync falhou.");
+async function cloudLoadNow() {
+  if (!db) { showToast("Nuvem indisponível (sem internet)"); return; }
+  if (!currentUser) { showToast("Entre na sua conta primeiro"); return; }
+  try {
+    const { data: row, error } = await db
+      .from(SYNC_TABLE)
+      .select("dados, updated_at")
+      .eq("user_id", currentUser.id)
+      .maybeSingle();
+
+    if (error) throw error;
+    if (!row?.dados) { showToast("Nada salvo na nuvem"); return; }
+
+    const snapshot = { ...row.dados, updatedAt: row.dados.updatedAt || row.updated_at };
+    applyRemoteSnapshot(snapshot);
+    showToast("Recuperado da nuvem");
+  } catch (e) {
+    console.error("Erro ao recuperar da nuvem", e);
+    showToast("Falha ao recuperar");
   }
 }
 function getCartao(id) {
@@ -1453,8 +1465,6 @@ function adicionarCartao(e) {
   const emoji = document.getElementById("ct-emoji").value.trim() || "💳";
   const cor = document.getElementById("ct-cor").value.trim() || "#8B5CF6";
   if (!nome) return;
-  const jaExiste = data.cartoes.some(c => (c.nome || "").trim().toLowerCase() === nome.toLowerCase());
-  if (jaExiste) { showToast("Cartão já cadastrado"); return; }
   data.cartoes.push({ id: uid(), nome, emoji, cor });
   saveData();
   document.getElementById("form-cartao").reset();
@@ -1597,7 +1607,7 @@ async function zerarTodosDados() {
 }
 
 function renderHome(monthTotals, maxTotal) {
-  const currentMonthIdx = activeMonthIdx;
+  const currentMonthIdx = new Date().getFullYear() === activeYear ? new Date().getMonth() : 0;
   const mesData = monthTotals[currentMonthIdx];
   const mesKey = mesData.key;
   const mesName = mesData.name;
@@ -1610,8 +1620,15 @@ function renderHome(monthTotals, maxTotal) {
   document.getElementById("stat-avista").textContent = fmt(mesData.totalAvista);
   document.getElementById("stat-cartoes").textContent = fmt(totalCartoesMes(mesKey));
 
-  document.getElementById("hero-badge").textContent = `${mesName} ${activeYear}`;
+  document.getElementById("hero-badge").textContent = `Janeiro–Dezembro ${activeYear}`;
   document.getElementById("stat-cartoes-sub").textContent = `fatura ${mesName.toLowerCase()}`;
+
+  const pendente = totalPendentePeriodo();
+  const totalGeral = totalGeralPeriodo();
+  const pillEl = document.getElementById("pill-total");
+  pillEl.textContent = fmt(pendente);
+  document.getElementById("pill-label").textContent =
+    pendente < totalGeral ? `💸 Pendente (Jan–Dez / ${activeYear})` : `💸 Total geral (Jan–Dez / ${activeYear})`;
 
   document.getElementById("home-months").innerHTML = monthTotals.map((m, i) => {
     const c = COLORS[i % COLORS.length];
@@ -1659,7 +1676,7 @@ function renderFilters() {
 }
 
 function renderParceladas() {
-  const currentMonthIdx = activeMonthIdx;
+  const currentMonthIdx = new Date().getFullYear() === activeYear ? new Date().getMonth() : 0;
   const mesKey = activeYear + "-" + ALL_MONTHS[currentMonthIdx];
   const monthName = MONTH_NAMES[currentMonthIdx];
 
@@ -1669,18 +1686,16 @@ function renderParceladas() {
     data.parceladas.length + ` parcelada(s) · Jan–Dez / ${activeYear}: ` + fmt(totalParceladasPeriodo());
 
   const list = document.getElementById("parcela-list");
-  let filtered = data.parceladas.filter(p => p.meses.includes(mesKey));
+  let filtered = data.parceladas;
   if (activeFilter !== "Todas") {
     filtered = filtered.filter(p => (nomeCartao(p.cartaoId) + " · " + p.loja) === activeFilter);
   }
   if (!filtered.length) {
-    list.innerHTML = `<p class="empty-msg">Nenhuma parcela ativa em ${monthName} de ${activeYear}.</p>`;
+    list.innerHTML = '<p class="empty-msg">Nenhuma dívida parcelada. Cadastre em Cartões.</p>';
     return;
   }
   list.innerHTML = filtered.map(p => {
-    const mesIdxInParcela = p.meses.indexOf(mesKey);
-    const nParcela = mesIdxInParcela + 1;
-    const totalParcelas = p.meses.length;
+    const remaining = p.meses.length;
     const cartao = getCartao(p.cartaoId);
     return `
       <div class="parcela-card">
@@ -1690,14 +1705,14 @@ function renderParceladas() {
           <div class="parcela-name">${esc(p.item)} — ${esc(p.loja)}</div>
           <div class="parcela-loja">${cartao ? cartao.emoji + " " + esc(cartao.nome) : "Sem cartão"} · até ${esc(p.ultimo)}</div>
           <div class="parcela-tags">
-            <span class="tag tag-parcelada">Parcela ${nParcela}/${totalParcelas}</span>
-            <span class="tag" style="background:${p.cor}20;color:${p.cor}">${totalParcelas}x</span>
+            <span class="tag tag-parcelada">Parcelada</span>
+            <span class="tag" style="background:${p.cor}20;color:${p.cor}">${remaining}x</span>
           </div>
         </div>
         <div class="parcela-right">
           <div class="parcela-value" style="color:${p.cor}">${fmt(p.parcela)}</div>
           <div class="parcela-month">/mês</div>
-          <div class="parcela-month" style="margin-top:4px;color:var(--muted2)">${fmt(p.parcela * totalParcelas)} total</div>
+          <div class="parcela-month" style="margin-top:4px;color:var(--muted2)">${fmt(p.parcela * remaining)} total</div>
         </div>
       </div>`;
   }).join("");
@@ -1709,33 +1724,20 @@ function changeCartoesMonth(idx) {
 }
 
 function renderCartoes() {
-  // Agora os cards sao agrupados por (cartao + mes da fatura).
-  // Isso permite ver Nubank/Junho e Nubank/Agosto ao mesmo tempo.
-
-  // O seletor antigo de mes (se existir no HTML) fica oculto.
   const monthPlaceholder = document.getElementById("cartoes-month-select-placeholder");
-  if (monthPlaceholder) monthPlaceholder.innerHTML = "";
-
-  fillCartaoSelects();
-  const wrap = document.getElementById("cartoes-grupos");
-  if (!wrap) return;
-
-  if (!data.cartoes.length) {
-    wrap.innerHTML = '<p class="empty-msg">Cadastre um cartão para lançar dívidas à vista ou parceladas.</p>';
-    document.getElementById("cartoes-tc-label").textContent = "Fatura dos cartões";
-    document.getElementById("cartoes-total-mes").textContent = fmt(0);
-    document.getElementById("cartoes-total-sub").textContent = "0 cartão(ões)";
-    return;
+  if (monthPlaceholder) {
+    monthPlaceholder.innerHTML = `
+      <div class="year-select-wrap">
+        <select class="year-select" onchange="changeCartoesMonth(parseInt(this.value, 10))">
+          ${MONTH_NAMES.map((n, i) => `<option value="${i}" ${i === activeCartoesMonthIdx ? "selected" : ""}>${n}</option>`).join("")}
+        </select>
+      </div>
+    `;
   }
 
-  const monthIndex = (mesKey) => {
-    const m = String(mesKey || "").split("-")[1] || "";
-    return ALL_MONTHS.indexOf(m);
-  };
-  const monthNameFromKey = (mesKey) => {
-    const idx = monthIndex(mesKey);
-    return idx >= 0 ? MONTH_NAMES[idx] : mesKey;
-  };
+  const mesKey = activeYear + "-" + ALL_MONTHS[activeCartoesMonthIdx];
+  const monthName = MONTH_NAMES[activeCartoesMonthIdx];
+
   const formatMesLabel = mesStr => {
     if (mesStr && mesStr.includes("-")) {
       const [y, m] = mesStr.split("-");
@@ -1745,104 +1747,61 @@ function renderCartoes() {
     return mesStr;
   };
 
-  // Meses com qualquer divida neste ano ativo
-  const mesesSet = new Set();
-  data.avista.forEach(a => {
-    if (a.mes && String(a.mes).startsWith(activeYear + "-")) mesesSet.add(a.mes);
-  });
-  data.parceladas.forEach(p => {
-    (p.meses || []).forEach(m => {
-      if (m && String(m).startsWith(activeYear + "-")) mesesSet.add(m);
-    });
-  });
+  document.getElementById("cartoes-tc-label").textContent = `Fatura dos cartões · ${monthName}`;
+  document.getElementById("cartoes-total-mes").textContent = fmt(totalCartoesMes(mesKey));
+  document.getElementById("cartoes-total-sub").textContent =
+    data.cartoes.length + ` cartão(ões) · à vista + parceladas na fatura de ${monthName}`;
 
-  const meses = Array.from(mesesSet).sort((a, b) => monthIndex(a) - monthIndex(b));
-
-  if (!meses.length) {
-    wrap.innerHTML = '<p class="empty-msg">Nenhuma dívida cadastrada. Adicione uma dívida à vista ou parcelada.</p>';
-    document.getElementById("cartoes-tc-label").textContent = `Fatura dos cartões · ${activeYear}`;
-    document.getElementById("cartoes-total-mes").textContent = fmt(0);
-    document.getElementById("cartoes-total-sub").textContent = "0 cartão(ões) com dívida";
+  fillCartaoSelects();
+  const wrap = document.getElementById("cartoes-grupos");
+  if (!data.cartoes.length) {
+    wrap.innerHTML = '<p class="empty-msg">Cadastre um cartão para lançar dívidas à vista ou parceladas.</p>';
     return;
   }
-
-  // Total geral por todos os meses exibidos
-  const totalGeral = meses.reduce((s, mesKey) => s + totalCartoesMes(mesKey), 0);
-  document.getElementById("cartoes-tc-label").textContent = `Fatura dos cartões · ${activeYear}`;
-  document.getElementById("cartoes-total-mes").textContent = fmt(totalGeral);
-
-  // Monta cards por (cartao + mes)
-  let cardsCount = 0;
-  const html = meses.map(mesKey => {
-    const mName = monthNameFromKey(mesKey);
-
-    const cartoesNoMes = data.cartoes.filter(c => {
-      const temAvista = data.avista.some(a => a.cartaoId === c.id && a.mes === mesKey);
-      const temParcelada = data.parceladas.some(p => p.cartaoId === c.id && (p.meses || []).includes(mesKey));
-      return temAvista || temParcelada;
-    });
-
-    if (!cartoesNoMes.length) return "";
-
-    const section = cartoesNoMes.map(c => {
-      cardsCount++;
-      const fatura = faturaCartaoMes(c.id, mesKey);
-      const parcMes = data.parceladas.filter(p => p.cartaoId === c.id && (p.meses || []).includes(mesKey));
-      const avMes = data.avista.filter(a => a.cartaoId === c.id && a.mes === mesKey);
-
-      const itens = [
-        ...avMes.map(a => renderDividaItem(a, "avista", `removerAvista('${a.id}')`, fmt(a.valor), formatMesLabel(a.mes))),
-        ...parcMes.map(p => {
-          const rem = p.meses.length;
-          return renderDividaItem(p, "parcelada", `removerParcelada('${p.id}')`, fmt(p.parcela) + "/mês", rem + " parcelas");
-        })
-      ].join("");
-
-      const groupKey = `${c.id}__${mesKey}`;
-      const isOpen = cartoesExpandidos.has(groupKey);
-
-      return `
-        <div class="cartao-grupo ${isOpen ? 'open' : ''}" id="grupo-${groupKey}">
-          <div class="cartao-mini" onclick="toggleCartao('${groupKey}')">
-            <div class="cartao-mini-icon" style="background:${c.cor}33;color:${c.cor}">${c.emoji}</div>
-            <div class="cartao-mini-info">
-              <div class="cartao-mini-nome">${esc(c.nome)} · ${mName}</div>
-              <div class="parcela-loja">Fatura ${mName}: <span class="cartao-mini-total">${fmt(fatura)}</span></div>
-            </div>
-            <div class="cartao-chevron">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                <polyline points="6 9 12 15 18 9"></polyline>
-              </svg>
-            </div>
-          </div>
-          <div class="cartao-itens-container">
-            <div class="cartao-itens-inner">
-              ${itens || '<p class="empty-msg" style="margin-top:0; margin-bottom:8px;">Nenhuma dívida neste mês</p>'}
-            </div>
-          </div>
-        </div>`;
-    }).join("");
-
+  wrap.innerHTML = data.cartoes.map(c => {
+    const fatura = faturaCartaoMes(c.id, mesKey);
+    const parc = data.parceladas.filter(p => p.cartaoId === c.id);
+    const av = data.avista.filter(a => a.cartaoId === c.id);
+    const itens = [
+      ...av.map(a => renderDividaItem(a, "avista", `removerAvista('${a.id}')`, fmt(a.valor), formatMesLabel(a.mes))),
+      ...parc.map(p => {
+        const rem = p.meses.length;
+        return renderDividaItem(p, "parcelada", `removerParcelada('${p.id}')`, fmt(p.parcela) + "/mês", rem + " parcelas");
+      })
+    ].join("");
+    const isOpen = cartoesExpandidos.has(c.id);
     return `
-      <div style="margin: 12px 20px 8px; font-family:'Syne',sans-serif; font-size:11px; letter-spacing:3px; text-transform:uppercase; color:var(--muted)">
-        ${mName}
-      </div>
-      ${section}
-    `;
+      <div class="cartao-grupo ${isOpen ? 'open' : ''}" id="grupo-${c.id}">
+        <div class="cartao-mini" onclick="toggleCartao('${c.id}')">
+          ${btnRemove(`removerCartao('${c.id}')`)}
+          <div class="cartao-mini-icon" style="background:${c.cor}33;color:${c.cor}">${c.emoji}</div>
+          <div class="cartao-mini-info">
+            <div class="cartao-mini-nome">${esc(c.nome)}</div>
+            <div class="parcela-loja">Fatura ${monthName}: <span class="cartao-mini-total">${fmt(fatura)}</span></div>
+          </div>
+          <div class="cartao-chevron">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="6 9 12 15 18 9"></polyline>
+            </svg>
+          </div>
+        </div>
+        <div class="cartao-itens-container">
+          <div class="cartao-itens-inner">
+            ${itens || '<p class="empty-msg" style="margin-top:0; margin-bottom:8px;">Nenhuma dívida neste cartão</p>'}
+          </div>
+        </div>
+      </div>`;
   }).join("");
-
-  wrap.innerHTML = html || '<p class="empty-msg">Nenhuma dívida encontrada.</p>';
-  document.getElementById("cartoes-total-sub").textContent = cardsCount + " card(s) (cartão + mês)";
 }
 
-function toggleCartao(groupKey) {
-  const grupo = document.getElementById(`grupo-${groupKey}`);
+function toggleCartao(cartaoId) {
+  const grupo = document.getElementById(`grupo-${cartaoId}`);
   if (!grupo) return;
-  if (cartoesExpandidos.has(groupKey)) {
-    cartoesExpandidos.delete(groupKey);
+  if (cartoesExpandidos.has(cartaoId)) {
+    cartoesExpandidos.delete(cartaoId);
     grupo.classList.remove("open");
   } else {
-    cartoesExpandidos.add(groupKey);
+    cartoesExpandidos.add(cartaoId);
     grupo.classList.add("open");
   }
 }
@@ -1975,6 +1934,11 @@ function renderChartFilters() {
 function renderCharts(monthTotals) {
   // Build chart filter
   renderChartFilters();
+  if (typeof Chart === "undefined") {
+    const legend = document.getElementById("pie-legend");
+    if (legend) legend.innerHTML = '<p class="empty-msg">Gráficos indisponíveis (offline)</p>';
+    return;
+  }
 
   // Find selected card ID
   let filterCartaoId = null;
@@ -1999,12 +1963,9 @@ function renderCharts(monthTotals) {
       lojaMap[a.item + " (à vista)"] = (lojaMap[a.item + " (à vista)"] || 0) + a.valor;
     });
   }
-  // Sort from largest to smallest value
-  const chartItems = Object.entries(lojaMap).map(([label, value]) => ({ label, value }));
-  chartItems.sort((a, b) => b.value - a.value);
-
-  const pieLabels = chartItems.map(item => item.label);
-  const pieValues = chartItems.map(item => item.value);
+  const pieEntries = Object.entries(lojaMap).sort((a, b) => b[1] - a[1]);
+  const pieLabels = pieEntries.map(([label]) => label);
+  const pieValues = pieEntries.map(([, value]) => value);
   const pieColors = ["#00D9A5", "#F9A8D4", "#FCD34D", "#93C5FD", "#C4B5FD", "#FCA5A5", "#6EE7B7"];
   const totalMensal = pieValues.reduce((s, v) => s + v, 0) || 1;
 
@@ -2073,34 +2034,14 @@ function renderYearSelectors() {
   });
 }
 
-function renderMonthSelectors() {
-  const placeholders = document.querySelectorAll(".month-select-placeholder");
-  placeholders.forEach(el => {
-    el.innerHTML = `
-      <div class="year-select-wrap">
-        <select class="year-select" onchange="changeActiveMonth(parseInt(this.value, 10))">
-          ${MONTH_NAMES.map((m, i) => `<option value="${i}" ${i === activeMonthIdx ? "selected" : ""}>${m}</option>`).join("")}
-        </select>
-      </div>
-    `;
-  });
-}
-
 function changeActiveYear(year) {
   activeYear = year;
   saveData();
   renderAll();
 }
 
-function changeActiveMonth(monthIdx) {
-  activeMonthIdx = monthIdx;
-  saveData();
-  renderAll();
-}
-
 function renderAll() {
   renderYearSelectors();
-  renderMonthSelectors();
   const monthTotals = getMonthTotals();
   const maxTotal = Math.max(1, ...monthTotals.map(m => m.total));
   renderHome(monthTotals, maxTotal);
@@ -2132,5 +2073,29 @@ document.querySelectorAll(".nav-btn").forEach(btn => {
 
 // Inicialização feita pelo Auth.showApp() após login
 </script>
+<script>
+(function () {
+  const VIEWPORT_MODE_KEY = "financas-viewport-mode";
+  const buttons = document.querySelectorAll("[data-viewport-mode]");
+
+  function setViewportMode(mode) {
+    const nextMode = mode === "desktop" ? "desktop" : "mobile";
+    document.body.classList.toggle("viewport-mobile", nextMode === "mobile");
+    localStorage.setItem(VIEWPORT_MODE_KEY, nextMode);
+    buttons.forEach((button) => {
+      button.classList.toggle("active", button.dataset.viewportMode === nextMode);
+    });
+  }
+
+  buttons.forEach((button) => {
+    button.addEventListener("click", () => setViewportMode(button.dataset.viewportMode));
+  });
+
+  setViewportMode(localStorage.getItem(VIEWPORT_MODE_KEY) || "mobile");
+})();
+</script>
 </body>
 </html>
+
+
+
