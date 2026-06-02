@@ -171,9 +171,12 @@
   .fadein-5 { animation-delay:.25s; }
 
   /* TOTAL PILL */
-  .total-pill { margin:16px 20px 0; background:rgba(255,209,102,0.08); border:1px solid rgba(255,209,102,0.2); border-radius:14px; padding:14px 18px; display:flex; justify-content:space-between; align-items:center; }
+  .total-pill { margin:16px 20px 0; background:rgba(255,209,102,0.08); border:1px solid rgba(255,209,102,0.2); border-radius:14px; padding:12px 14px; display:flex; justify-content:space-between; align-items:center; gap:10px; }
   .total-pill-label { font-size:12px; color:var(--accent3); }
   .total-pill-value { font-family:'Syne',sans-serif; font-size:18px; font-weight:700; color:var(--accent3); }
+  .total-pill-toggle { border:none; background:transparent; color:var(--accent3); font-family:'DM Sans',sans-serif; font-size:12px; font-weight:700; cursor:pointer; padding:4px 0; text-align:left; }
+  .total-pill-controls { display:flex; align-items:center; gap:6px; flex-wrap:wrap; }
+  .total-pill-select { background:var(--bg3); border:1px solid rgba(255,209,102,0.22); color:var(--accent3); border-radius:10px; padding:6px 8px; font-family:'DM Sans',sans-serif; font-size:11px; font-weight:700; outline:none; }
 
   /* AÇÕES */
   .parcela-card { position:relative; }
@@ -593,8 +596,13 @@
       </div>
 
       <div class="total-pill fadein fadein-3">
-        <span class="total-pill-label" id="pill-label">💸 Total geral (Jun–Dez)</span>
-        <span class="total-pill-value" id="pill-total"></span>
+        <div class="total-pill-controls">
+          <button type="button" class="total-pill-toggle" id="pill-label" onclick="toggleHomePeriodTotal()">Ver total</button>
+          <select class="total-pill-select" id="home-period-start" onchange="setHomePeriodStart(parseInt(this.value,10))"></select>
+          <span class="total-pill-label">ate</span>
+          <select class="total-pill-select" id="home-period-end" onchange="setHomePeriodEnd(parseInt(this.value,10))"></select>
+        </div>
+        <span class="total-pill-value" id="pill-total" style="display:none"></span>
       </div>
 
       <div class="section-title fadein fadein-3">Próximos meses</div>
@@ -1052,6 +1060,9 @@ let activeYear = data.activeYear || new Date().getFullYear();
 let currentUser = null;
 let activeFilter = "Todas";
 let activeCartoesMonthIdx = new Date().getMonth();
+let activeHomeStartMonthIdx = new Date().getMonth();
+let activeHomeEndMonthIdx = 11;
+let showHomePeriodTotal = false;
 let pieChart = null, barChart = null;
 let confirmResolve = null;
 let cartoesExpandidos = new Set();
@@ -1225,12 +1236,22 @@ function totalFixasMensal() {
 function totalFixasPeriodo() {
   return totalFixasMensal() * ALL_MONTHS.length;
 }
+function uniqueParceladas() {
+  const seen = new Set();
+  return data.parceladas.filter(p => {
+    const meses = (p.meses || []).join('|');
+    const key = [p.cartaoId || '', (p.item || '').trim().toLowerCase(), (p.loja || '').trim().toLowerCase(), Number(p.parcela || 0).toFixed(2), meses].join('::');
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
 
 function totalParceladasMes(mesKey) {
-  return data.parceladas.filter(p => p.meses.includes(mesKey)).reduce((s, p) => s + p.parcela, 0);
+  return uniqueParceladas().filter(p => p.meses.includes(mesKey)).reduce((s, p) => s + p.parcela, 0);
 }
 function totalParceladasPeriodo() {
-  return data.parceladas.reduce((s, p) => s + p.parcela * p.meses.length, 0);
+  return uniqueParceladas().reduce((s, p) => s + p.parcela * p.meses.length, 0);
 }
 
 function totalAvistaMes(mesKey) {
@@ -1252,6 +1273,34 @@ function totalGeralMes(mesKey) {
 }
 function totalGeralPeriodo() {
   return totalFixasPeriodo() + totalParceladasPeriodo() + totalAvistaPeriodo();
+}
+function homePeriodMonths() {
+  const start = Math.min(activeHomeStartMonthIdx, activeHomeEndMonthIdx);
+  const end = Math.max(activeHomeStartMonthIdx, activeHomeEndMonthIdx);
+  return ALL_MONTHS.slice(start, end + 1).map(m => activeYear + "-" + m);
+}
+function homePeriodLabel() {
+  const start = Math.min(activeHomeStartMonthIdx, activeHomeEndMonthIdx);
+  const end = Math.max(activeHomeStartMonthIdx, activeHomeEndMonthIdx);
+  return MONTH_NAMES[start].slice(0, 3) + "-" + MONTH_NAMES[end].slice(0, 3) + " / " + activeYear;
+}
+function totalPendenteHomePeriodo() {
+  const meses = new Set(homePeriodMonths());
+  return getMonthTotals()
+    .filter(m => meses.has(m.key))
+    .reduce((s, m) => s + (m.total - m.totalPago), 0);
+}
+function setHomePeriodStart(idx) {
+  activeHomeStartMonthIdx = idx;
+  renderAll();
+}
+function setHomePeriodEnd(idx) {
+  activeHomeEndMonthIdx = idx;
+  renderAll();
+}
+function toggleHomePeriodTotal() {
+  showHomePeriodTotal = !showHomePeriodTotal;
+  renderAll();
 }
 
 function vencimentoLabel(dia) {
@@ -1346,7 +1395,7 @@ function totalPendentePeriodo() {
 }
 
 function faturaCartaoMes(cartaoId, mesKey) {
-  const parc = data.parceladas.filter(p => p.cartaoId === cartaoId && p.meses.includes(mesKey)).reduce((s, p) => s + p.parcela, 0);
+  const parc = uniqueParceladas().filter(p => p.cartaoId === cartaoId && p.meses.includes(mesKey)).reduce((s, p) => s + p.parcela, 0);
   const av = data.avista.filter(a => a.cartaoId === cartaoId && a.mes === mesKey).reduce((s, a) => s + a.valor, 0);
   return parc + av;
 }
@@ -1355,7 +1404,7 @@ function getMonthTotals() {
   const fixasTotal = totalFixasMensal();
   return ALL_MONTHS.map((m, i) => {
     const mesKey = activeYear + "-" + m;
-    const parceladasMes = data.parceladas.filter(p => p.meses.includes(mesKey));
+    const parceladasMes = uniqueParceladas().filter(p => p.meses.includes(mesKey));
     const avistaMes = data.avista.filter(a => a.mes === mesKey);
     const items = [
       ...data.fixas.map(f => ({ ...f, parcela: f.valor, tipo: "fixa", label: f.item })),
@@ -1674,15 +1723,23 @@ function renderHome(monthTotals, maxTotal) {
   document.getElementById("stat-avista").textContent = fmt(mesData.totalAvista);
   document.getElementById("stat-cartoes").textContent = fmt(totalCartoesMes(mesKey));
 
-  document.getElementById("hero-badge").textContent = `Janeiro–Dezembro ${activeYear}`;
+  document.getElementById("hero-badge").textContent = homePeriodLabel();
   document.getElementById("stat-cartoes-sub").textContent = `fatura ${mesName.toLowerCase()}`;
 
-  const pendente = totalPendentePeriodo();
-  const totalGeral = totalGeralPeriodo();
+  const periodStart = document.getElementById("home-period-start");
+  const periodEnd = document.getElementById("home-period-end");
+  const periodOptions = MONTH_NAMES.map((n, i) => '<option value="' + i + '">' + n.slice(0, 3) + '</option>').join("");
+  periodStart.innerHTML = periodOptions;
+  periodEnd.innerHTML = periodOptions;
+  periodStart.value = activeHomeStartMonthIdx;
+  periodEnd.value = activeHomeEndMonthIdx;
+
+  const pendente = totalPendenteHomePeriodo();
   const pillEl = document.getElementById("pill-total");
+  const pillLabel = document.getElementById("pill-label");
   pillEl.textContent = fmt(pendente);
-  document.getElementById("pill-label").textContent =
-    pendente < totalGeral ? `💸 Pendente (Jan–Dez / ${activeYear})` : `💸 Total geral (Jan–Dez / ${activeYear})`;
+  pillEl.style.display = showHomePeriodTotal ? "inline" : "none";
+  pillLabel.textContent = showHomePeriodTotal ? "Ocultar total " + homePeriodLabel() : "Ver total " + homePeriodLabel();
 
   document.getElementById("home-months").innerHTML = monthTotals.map((m, i) => {
     const c = COLORS[i % COLORS.length];
@@ -1814,7 +1871,7 @@ function renderCartoes() {
   }
   wrap.innerHTML = data.cartoes.map(c => {
     const fatura = faturaCartaoMes(c.id, mesKey);
-    const parc = data.parceladas.filter(p => p.cartaoId === c.id && p.meses.includes(mesKey));
+    const parc = uniqueParceladas().filter(p => p.cartaoId === c.id && p.meses.includes(mesKey));
     const av = data.avista.filter(a => a.cartaoId === c.id && a.mes === mesKey);
     const itens = [
       ...av.map(a => renderDividaItem(a, "avista", `removerAvista('${a.id}')`, fmt(a.valor), formatMesLabel(a.mes))),
@@ -2051,7 +2108,7 @@ function renderCharts(monthTotals) {
   // Build bar data based on filter
   const barData = monthTotals.map(m => {
     if (!filterCartaoId) return m.total;
-    const parc = data.parceladas.filter(p => p.cartaoId === filterCartaoId && p.meses.includes(m.key)).reduce((s, p) => s + p.parcela, 0);
+    const parc = uniqueParceladas().filter(p => p.cartaoId === filterCartaoId && p.meses.includes(m.key)).reduce((s, p) => s + p.parcela, 0);
     const av = data.avista.filter(a => a.cartaoId === filterCartaoId && a.mes === m.key).reduce((s, a) => s + a.valor, 0);
     return parc + av;
   });
