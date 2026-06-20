@@ -590,6 +590,10 @@
               <label>Dia de vencimento</label>
               <input type="number" id="f-vencimento" min="1" max="31" value="10" placeholder="Ex: 15" required>
             </div>
+            <div class="form-field">
+              <label>Mês inicial</label>
+              <select id="f-inicio" required></select>
+            </div>
           </div>
           <button type="submit" class="btn-submit">Adicionar dívida fixa</button>
         </form>
@@ -864,7 +868,8 @@ let cartoesExpandidos = new Set();
 let activeChartFilter = "Todas";
 
 function normFixa(f) {
-  return { ...f, id: f.id || uid(), vencimento: Math.min(31, Math.max(1, parseInt(f.vencimento, 10) || 10)) };
+  const inicioPadrao = new Date().getFullYear() + "-" + ALL_MONTHS[new Date().getMonth()];
+  return { ...f, id: f.id || uid(), vencimento: Math.min(31, Math.max(1, parseInt(f.vencimento, 10) || 10)), inicio: f.inicio || inicioPadrao };
 }
 function normParcelada(p) {
   return { ...p, id: p.id || uid(), parcela: parseFloat(p.parcela) || 0, meses: p.meses || [] };
@@ -1003,8 +1008,24 @@ function periodoCartao(nome) {
   return p ? p.texto : "";
 }
 
+// Índice comparável de um mês ("YYYY-Mon") -> ano*12 + idx do mês
+function mesKeyIndex(mesKey) {
+  const [y, m] = mesKey.split("-");
+  return parseInt(y, 10) * 12 + ALL_MONTHS.indexOf(m);
+}
+// Uma fixa só "vale" a partir do mês em que foi criada (f.inicio).
+// Fixas antigas sem 'inicio' continuam valendo para todos os meses.
+function fixaAtivaNoMes(f, mesKey) {
+  return !f.inicio || mesKeyIndex(mesKey) >= mesKeyIndex(f.inicio);
+}
+function fixasDoMes(mesKey) {
+  return data.fixas.filter(f => fixaAtivaNoMes(f, mesKey));
+}
 function totalFixasMensal() { return data.fixas.reduce((s, f) => s + f.valor, 0); }
-function totalFixasPeriodo() { return totalFixasMensal() * ALL_MONTHS.length; }
+function totalFixasMes(mesKey) { return fixasDoMes(mesKey).reduce((s, f) => s + f.valor, 0); }
+function totalFixasPeriodo() {
+  return ALL_MONTHS.reduce((s, m) => s + totalFixasMes(activeYear + "-" + m), 0);
+}
 
 function totalParceladasMes(mesKey) {
   return data.parceladas.filter(p => p.meses.includes(mesKey)).reduce((s, p) => s + p.parcela, 0);
@@ -1034,11 +1055,11 @@ function totalCartoesMesPendente(mesKey) {
 }
 
 function totalFixasMesPendente(mesKey) {
-  return data.fixas.reduce((s, f) => s + (isItemPago("fixa", f.id, mesKey) ? 0 : f.valor), 0);
+  return fixasDoMes(mesKey).reduce((s, f) => s + (isItemPago("fixa", f.id, mesKey) ? 0 : f.valor), 0);
 }
 
 function totalGeralMes(mesKey) {
-  return totalFixasMensal() + totalParceladasMes(mesKey) + totalAvistaMes(mesKey);
+  return totalFixasMes(mesKey) + totalParceladasMes(mesKey) + totalAvistaMes(mesKey);
 }
 function totalGeralPeriodo() {
   return totalFixasPeriodo() + totalParceladasPeriodo() + totalAvistaPeriodo();
@@ -1066,7 +1087,15 @@ function vencimentoLabel(dia) { return "Vence todo dia " + dia; }
 function pagoKey(tipo, id, mesKey) {
   return tipo === "avista" ? `avista_${id}` : `${tipo}_${id}_${mesKey}`;
 }
+// Mês estritamente anterior ao mês atual (no calendário real)
+function mesPassado(mesKey) {
+  if (!mesKey || !mesKey.includes("-")) return false;
+  const now = new Date();
+  return mesKeyIndex(mesKey) < (now.getFullYear() * 12 + now.getMonth());
+}
 function isItemPago(tipo, id, mesKey) {
+  // Meses passados são considerados pagos automaticamente
+  if (mesPassado(mesKey)) return true;
   return !!data.pagos.itens[pagoKey(tipo, id, mesKey)];
 }
 function toggleItemPago(tipo, id, mesKey) {
@@ -1131,11 +1160,12 @@ function syncMesPago(mesKey) {
 // "Mês pago" é calculado ao vivo a partir dos itens reais daquele mês,
 // nunca de uma lista salva (que poderia ficar desatualizada).
 function isMesPago(mesKey) {
+  const fixas = fixasDoMes(mesKey);
   const parc = data.parceladas.filter(p => p.meses.includes(mesKey));
   const av = data.avista.filter(a => a.mes === mesKey);
-  const count = data.fixas.length + parc.length + av.length;
+  const count = fixas.length + parc.length + av.length;
   if (count === 0) return false;
-  return data.fixas.every(f => isItemPago("fixa", f.id, mesKey)) &&
+  return fixas.every(f => isItemPago("fixa", f.id, mesKey)) &&
          parc.every(p => isItemPago("parcelada", p.id, mesKey)) &&
          av.every(a => isItemPago("avista", a.id, a.mes));
 }
@@ -1177,13 +1207,14 @@ function faturaCartaoMesPendente(cartaoId, mesKey) {
 }
 
 function getMonthTotals() {
-  const fixasTotal = totalFixasMensal();
   return ALL_MONTHS.map((m, i) => {
     const mesKey = activeYear + "-" + m;
+    const fixasMes = fixasDoMes(mesKey);
+    const fixasTotal = fixasMes.reduce((s, f) => s + f.valor, 0);
     const parceladasMes = data.parceladas.filter(p => p.meses.includes(mesKey));
     const avistaMes = data.avista.filter(a => a.mes === mesKey);
     const items = [
-      ...data.fixas.map(f => ({ ...f, parcela: f.valor, tipo: "fixa", label: f.item })),
+      ...fixasMes.map(f => ({ ...f, parcela: f.valor, tipo: "fixa", label: f.item })),
       ...parceladasMes.map(p => ({ ...p, tipo: "parcelada", label: p.item, parcela: p.parcela })),
       ...avistaMes.map(a => ({ ...a, tipo: "avista", label: a.item, parcela: a.valor, emoji: a.emoji || "💵", loja: nomeCartao(a.cartaoId) }))
     ];
@@ -1224,7 +1255,7 @@ function pickColor() {
 }
 
 function fillMesSelects() {
-  ["av-mes", "pc-inicio"].forEach(id => {
+  ["av-mes", "pc-inicio", "f-inicio"].forEach(id => {
     const el = document.getElementById(id);
     if (!el) return;
     const v = el.value;
@@ -1421,7 +1452,8 @@ function adicionarFixa(e) {
   const valor = parseFloat(document.getElementById("f-valor").value);
   const vencimento = Math.min(31, Math.max(1, parseInt(document.getElementById("f-vencimento").value, 10) || 10));
   if (!item || !loja || !valor) return;
-  data.fixas.push({ id: uid(), item, loja, emoji, valor, vencimento, cor: pickColor() });
+  const inicio = document.getElementById("f-inicio").value || (activeYear + "-" + ALL_MONTHS[activeFixasMonthIdx]);
+  data.fixas.push({ id: uid(), item, loja, emoji, valor, vencimento, cor: pickColor(), inicio });
   saveData();
   document.getElementById("form-fixa").reset();
   document.getElementById("f-vencimento").value = "10";
@@ -1788,7 +1820,11 @@ function renderFixas() {
     return;
   }
   const checkSvg = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>`;
-  const ordenadas = [...data.fixas].sort((a, b) => (a.vencimento || 1) - (b.vencimento || 1));
+  const ordenadas = fixasDoMes(mesKey).sort((a, b) => (a.vencimento || 1) - (b.vencimento || 1));
+  if (!ordenadas.length) {
+    list.innerHTML = `<p class="empty-msg">Nenhuma dívida fixa ativa em ${monthName}. Ela passa a contar a partir do mês em que foi criada.</p>`;
+    return;
+  }
   list.innerHTML = ordenadas.map(f => {
     const pago = isItemPago("fixa", f.id, mesKey);
     const nameStyle = pago ? "text-decoration:line-through;opacity:0.6" : "";
@@ -1825,6 +1861,8 @@ function renderMeses(monthTotals, maxTotal) {
     const mesClass = allPaid ? " mes-pago" : "";
     const barColor = allPaid ? "var(--accent)" : c;
     const mesAbbr = m.key.split("-")[1];
+    const pendente = m.total - m.totalPago;
+    const temPago = m.totalPago > 0;
 
     const detailHtml = m.items.map(p => {
       const pago = p._pago;
@@ -1849,10 +1887,13 @@ function renderMeses(monthTotals, maxTotal) {
             <div class="mes-badge" style="background:${c}18;color:${c}">${mesAbbr}</div>
             <div>
               <div class="mes-title">${m.name} ${activeYear}${badgeHtml}</div>
-              <div class="mes-count">${m.items.length} item${m.items.length > 1 ? "s" : ""}${pagoInfo}</div>
+              <div class="mes-count">${m.items.length} item${m.items.length > 1 ? "s" : ""}${pagoInfo}${temPago && !allPaid ? " · falta " + fmt(pendente) : ""}</div>
             </div>
           </div>
-          <div class="mes-total" style="color:${allPaid ? 'var(--accent)' : c}">${fmt(m.total)}</div>
+          <div style="text-align:right">
+            <div class="mes-total" style="color:${allPaid ? 'var(--accent)' : c}">${fmt(pendente)}</div>
+            ${temPago ? `<div class="mes-pago-info">de ${fmt(m.total)}</div>` : ""}
+          </div>
         </div>
         <div class="mes-progress"><div class="mes-bar" style="width:${pct}%;background:${barColor}"></div></div>
         <div class="mes-detail" id="${detailId}">${detailHtml}</div>
