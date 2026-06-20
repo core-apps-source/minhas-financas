@@ -1128,7 +1128,17 @@ function syncMesPago(mesKey) {
   if (allPaid && idx === -1) data.pagos.meses.push(mesKey);
   else if (!allPaid && idx !== -1) data.pagos.meses.splice(idx, 1);
 }
-function isMesPago(mesKey) { return data.pagos.meses.includes(mesKey); }
+// "Mês pago" é calculado ao vivo a partir dos itens reais daquele mês,
+// nunca de uma lista salva (que poderia ficar desatualizada).
+function isMesPago(mesKey) {
+  const parc = data.parceladas.filter(p => p.meses.includes(mesKey));
+  const av = data.avista.filter(a => a.mes === mesKey);
+  const count = data.fixas.length + parc.length + av.length;
+  if (count === 0) return false;
+  return data.fixas.every(f => isItemPago("fixa", f.id, mesKey)) &&
+         parc.every(p => isItemPago("parcelada", p.id, mesKey)) &&
+         av.every(a => isItemPago("avista", a.id, a.mes));
+}
 function toggleMesPago(mesKey) {
   const monthData = getMonthTotals().find(m => m.key === mesKey);
   if (!monthData) return;
