@@ -1774,7 +1774,7 @@ function renderDividaItem(o, tipo, removeFn, valorStr, sub, mesKey) {
                   : (o.meses && o.meses.length > 0 && o.meses.every(m => isItemPago("parcelada", o.id, m)));
   }
   const btnClass = pago ? " checked" : "";
-  const cardStyle = pago ? "margin-bottom:8px;opacity:0.5;padding-right:80px;" : "margin-bottom:8px;padding-right:80px;";
+  const cardStyle = pago ? "margin-bottom:8px;opacity:0.5;padding-right:16px;" : "margin-bottom:8px;padding-right:16px;";
   const nameStyle = pago ? "text-decoration:line-through;opacity:0.7" : "";
   const toggleFn = tipo === "avista"
     ? `toggleItemPago('avista','${o.id}','${o.mes}')`
@@ -1791,7 +1791,7 @@ function renderDividaItem(o, tipo, removeFn, valorStr, sub, mesKey) {
         <div class="parcela-loja">${sub}${pago ? ' · <span style="color:var(--accent)">✓ Pago</span>' : ''}</div>
         <div class="parcela-tags"><span class="tag tag-${tipo}">${tipo === "avista" ? "À vista" : "Parcelada"}</span></div>
       </div>
-      <div class="parcela-right">
+      <div class="parcela-right" style="flex-shrink:0;white-space:nowrap">
         <div class="parcela-value" style="color:${pago ? 'var(--accent)' : o.cor}">${valorStr}</div>
       </div>
     </div>`;
