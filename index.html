@@ -1791,7 +1791,7 @@ function renderDividaItem(o, tipo, removeFn, valorStr, sub, mesKey) {
         <div class="parcela-loja">${sub}${pago ? ' · <span style="color:var(--accent)">✓ Pago</span>' : ''}</div>
         <div class="parcela-tags"><span class="tag tag-${tipo}">${tipo === "avista" ? "À vista" : "Parcelada"}</span></div>
       </div>
-      <div class="parcela-right" style="flex-shrink:0;white-space:nowrap;margin-left:14px">
+      <div class="parcela-right" style="flex-shrink:0;white-space:nowrap;margin-left:4px">
         <div class="parcela-value" style="color:${pago ? 'var(--accent)' : o.cor}">${valorStr}</div>
       </div>
     </div>`;
