@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8">
@@ -276,6 +276,16 @@
   .btn-marcar-mes { padding:6px 12px; border-radius:99px; border:1px solid var(--border); background:var(--bg3); color:var(--muted); font-family:'DM Sans',sans-serif; font-size:10px; font-weight:600; cursor:pointer; transition:all .2s ease; white-space:nowrap; flex-shrink:0; }
   .btn-marcar-mes:hover { border-color:var(--accent); color:var(--accent); }
   .btn-marcar-mes.pago-ativo { background:rgba(0,217,165,0.1); border-color:rgba(0,217,165,0.3); color:var(--accent); }
+
+  .item-menu-btn { position:absolute; right:12px; top:50%; transform:translateY(-50%); width:32px; height:32px; border-radius:8px; border:1px solid var(--border); background:var(--bg3); color:var(--muted); cursor:pointer; display:flex; align-items:center; justify-content:center; font-weight:700; transition:all .2s ease; z-index:10; }
+  .item-menu-btn:hover { background:var(--card); color:var(--text); border-color:var(--accent); }
+  .item-menu-dropdown { position:absolute; bottom:40px; right:8px; background:var(--card); border:1px solid var(--border); border-radius:10px; z-index:20; display:none; flex-direction:column; gap:0; min-width:140px; box-shadow:0 4px 12px rgba(0,0,0,0.4); }
+  .item-menu-dropdown.open { display:flex; }
+  .item-menu-item { padding:10px 14px; border-bottom:1px solid rgba(255,255,255,0.04); cursor:pointer; font-size:13px; display:flex; align-items:center; gap:8px; transition:background .15s; color:var(--text); }
+  .item-menu-item:last-child { border-bottom:none; }
+  .item-menu-item:hover { background:var(--bg3); }
+  .item-menu-item.delete { color:var(--accent2); }
+  .item-menu-item.delete:hover { background:rgba(255,107,107,0.1); }
 
   .mes-pago-info { font-size:10px; color:var(--muted); margin-top:2px; }
 
@@ -1338,6 +1348,22 @@ async function removerCartao(id) {
   showToast("Cartão removido");
 }
 
+async function editarParcelada(id) {
+  const p = data.parceladas.find(x => x.id === id);
+  if (!p) return;
+  const novoItem = prompt("Nome do produto/serviço:", p.item);
+  if (!novoItem) return;
+  const novoValor = prompt("Valor da parcela (R$):", p.parcela.toString());
+  if (!novoValor) return;
+  const valor = parseFloat(novoValor);
+  if (isNaN(valor) || valor <= 0) { showToast("Valor inválido"); return; }
+  p.item = novoItem.trim();
+  p.parcela = valor;
+  saveData();
+  renderAll();
+  showToast("Dívida parcelada atualizada");
+}
+
 async function removerParcelada(id) {
   const p = data.parceladas.find(x => x.id === id);
   if (!p) return;
@@ -1347,6 +1373,22 @@ async function removerParcelada(id) {
   saveData();
   renderAll();
   showToast("Dívida parcelada removida");
+}
+
+async function editarAvista(id) {
+  const a = data.avista.find(x => x.id === id);
+  if (!a) return;
+  const novoItem = prompt("Nome da compra:", a.item);
+  if (!novoItem) return;
+  const novoValor = prompt("Valor (R$):", a.valor.toString());
+  if (!novoValor) return;
+  const valor = parseFloat(novoValor);
+  if (isNaN(valor) || valor <= 0) { showToast("Valor inválido"); return; }
+  a.item = novoItem.trim();
+  a.valor = valor;
+  saveData();
+  renderAll();
+  showToast("Dívida atualizada");
 }
 
 async function removerAvista(id) {
@@ -1710,10 +1752,10 @@ function renderCartoes() {
     const parc = data.parceladas.filter(p => p.cartaoId === c.id);
     const av = data.avista.filter(a => a.cartaoId === c.id);
     const itens = [
-      ...av.map(a => renderDividaItem(a, "avista", `removerAvista('${a.id}')`, fmt(a.valor), formatMesLabel(a.mes))),
+      ...av.map(a => renderDividaItem(a, "avista", `removerAvista('${a.id}')`, `editarAvista('${a.id}')`, fmt(a.valor), formatMesLabel(a.mes))),
       ...parc.map(p => {
         const rem = p.meses.length;
-        return renderDividaItem(p, "parcelada", `removerParcelada('${p.id}')`, fmt(p.parcela) + "/mês", rem + " parcelas", mesKey);
+        return renderDividaItem(p, "parcelada", `removerParcelada('${p.id}')`, `editarParcelada('${p.id}')`, fmt(p.parcela) + "/mês", rem + " parcelas", mesKey);
       })
     ].join("");
     const isOpen = cartoesExpandidos.has(c.id);
@@ -1763,36 +1805,24 @@ function toggleCartao(cartaoId) {
   }
 }
 
-function renderDividaItem(o, tipo, removeFn, valorStr, sub, mesKey) {
-  const checkSvg = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>`;
-  let pago = false;
-  if (tipo === "avista") {
-    pago = isItemPago("avista", o.id, o.mes);
-  } else if (tipo === "parcelada") {
-    // No contexto do cartão, "pago" considera o mês exibido na fatura
-    pago = mesKey ? isItemPago("parcelada", o.id, mesKey)
-                  : (o.meses && o.meses.length > 0 && o.meses.every(m => isItemPago("parcelada", o.id, m)));
-  }
-  const btnClass = pago ? " checked" : "";
-  const cardStyle = pago ? "margin-bottom:8px;opacity:0.5;padding-right:16px;" : "margin-bottom:8px;padding-right:16px;";
-  const nameStyle = pago ? "text-decoration:line-through;opacity:0.7" : "";
-  const toggleFn = tipo === "avista"
-    ? `toggleItemPago('avista','${o.id}','${o.mes}')`
-    : `toggleItemPago('parcelada','${o.id}','${mesKey}')`;
+function renderDividaItem(o, tipo, removeFn, editFn, valorStr, sub, mesKey) {
+  const menuId = "menu-" + uid();
+  const cardStyle = "margin-bottom:8px;padding-right:48px;";
   return `
-    <div class="parcela-card" style="${cardStyle}">
-      ${btnRemove(removeFn)}
-      <button class="btn-pago-toggle${btnClass}" onclick="event.stopPropagation();${toggleFn}" title="${pago ? 'Desmarcar' : 'Marcar como pago'}" style="position:absolute;top:10px;right:44px">
-        ${checkSvg}
-      </button>
+    <div class="parcela-card" style="${cardStyle}position:relative;">
+      <button type="button" class="item-menu-btn" onclick="event.stopPropagation();toggleItemMenu('${menuId}')" title="Opções">⋮</button>
+      <div class="item-menu-dropdown" id="${menuId}">
+        <div class="item-menu-item" onclick="event.stopPropagation();${editFn};closeAllMenus()">✏️ Editar</div>
+        <div class="item-menu-item delete" onclick="event.stopPropagation();${removeFn};closeAllMenus()">🗑️ Excluir</div>
+      </div>
       <div class="parcela-icon" style="background:${o.cor}18">${o.emoji || "💳"}</div>
       <div class="parcela-info" style="flex:0 1 auto">
-        <div class="parcela-name" style="${nameStyle}">${esc(o.item)}${o.loja ? " — " + esc(o.loja) : ""}</div>
-        <div class="parcela-loja">${sub}${pago ? ' · <span style="color:var(--accent)">✓ Pago</span>' : ''}</div>
+        <div class="parcela-name">${esc(o.item)}${o.loja ? " — " + esc(o.loja) : ""}</div>
+        <div class="parcela-loja">${sub}</div>
         <div class="parcela-tags"><span class="tag tag-${tipo}">${tipo === "avista" ? "À vista" : "Parcelada"}</span></div>
       </div>
       <div class="parcela-right" style="flex-shrink:0;white-space:nowrap;margin-left:4px">
-        <div class="parcela-value" style="color:${pago ? 'var(--accent)' : o.cor}">${valorStr}</div>
+        <div class="parcela-value" style="color:${o.cor}">${valorStr}</div>
       </div>
     </div>`;
 }
@@ -2043,6 +2073,16 @@ function toggleMes(id) {
   document.getElementById(id).classList.toggle("open");
 }
 
+function toggleItemMenu(menuId) {
+  closeAllMenus();
+  const menu = document.getElementById(menuId);
+  if (menu) menu.classList.add("open");
+}
+
+function closeAllMenus() {
+  document.querySelectorAll(".item-menu-dropdown.open").forEach(m => m.classList.remove("open"));
+}
+
 function goTo(screen) {
   document.querySelectorAll(".screen").forEach(s => s.classList.remove("active"));
   document.querySelectorAll(".nav-btn").forEach(b => b.classList.remove("active"));
@@ -2054,6 +2094,8 @@ function goTo(screen) {
 document.querySelectorAll(".nav-btn").forEach(btn => {
   btn.addEventListener("click", () => goTo(btn.dataset.screen));
 });
+
+document.addEventListener("click", () => closeAllMenus());
 
 </script>
 <script>
