@@ -1786,12 +1786,12 @@ function renderDividaItem(o, tipo, removeFn, valorStr, sub, mesKey) {
         ${checkSvg}
       </button>
       <div class="parcela-icon" style="background:${o.cor}18">${o.emoji || "💳"}</div>
-      <div class="parcela-info">
+      <div class="parcela-info" style="flex:0 1 auto">
         <div class="parcela-name" style="${nameStyle}">${esc(o.item)}${o.loja ? " — " + esc(o.loja) : ""}</div>
         <div class="parcela-loja">${sub}${pago ? ' · <span style="color:var(--accent)">✓ Pago</span>' : ''}</div>
         <div class="parcela-tags"><span class="tag tag-${tipo}">${tipo === "avista" ? "À vista" : "Parcelada"}</span></div>
       </div>
-      <div class="parcela-right" style="flex-shrink:0;white-space:nowrap">
+      <div class="parcela-right" style="flex-shrink:0;white-space:nowrap;margin-left:14px">
         <div class="parcela-value" style="color:${pago ? 'var(--accent)' : o.cor}">${valorStr}</div>
       </div>
     </div>`;
